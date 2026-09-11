@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LOGIC∴RHYTHM</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Archivo+Narrow:wght@500;600&display=swap');
+
+:root{
+  --bg:#121110;
+  --panel:#201e1b;
+  --panel2:#282520;
+  --line:#4a4438;
+  --line-dim:#332f28;
+  --label:#d1cabb;
+  --label-dim:#8f8878;
+  --amber:#e2a24a;
+  --amber-dim:#5a4526;
+  --cyan:#5fb8ad;
+  --red:#c96a5e;
+  --violet:#b083d1;
+  --ink:#17140f;
+  --shadow-1: 0 4px 14px rgba(0,0,0,0.35);
+  --shadow-2: 0 8px 30px rgba(0,0,0,0.5);
+  --panel-highlight: rgba(255,255,255,0.04);
+  --c0:#d98a3d; --c1:#4fa39a; --c2:#b06b8f; --c3:#8f9a4f; --c4:#6b84a3; --c5:#a3854f;
+}
+/* Light mode: cool off-white panels, moderate blue standing in for amber everywhere amber was
+   the accent (LEDs, active buttons, highlighted text). Clock identity colors (c0–c5) and the
+   red mute/conflict color are left as-is — they're already mid-tone enough to read on both
+   backgrounds, and changing them would break the "same clock = same color" mental model. */
+:root[data-theme="light"]{
+  --bg:#eef2f6;
+  --panel:#ffffff;
+  --panel2:#e7edf3;
+  --line:#c4ccd6;
+  --line-dim:#dde3ea;
+  --label:#1f2733;
+  --label-dim:#64707f;
+  --amber:#3b76b3;
+  --amber-dim:#dbe9f7;
+  --cyan:#157f78;
+  --red:#c0392b;
+  --violet:#7a4fa3;
+  --ink:#ffffff;
+  --shadow-1: 0 4px 14px rgba(30,41,59,0.10);
+  --shadow-2: 0 8px 30px rgba(30,41,59,0.16);
+  --panel-highlight: rgba(255,255,255,0);
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--label);
+  font-family:'Archivo Narrow',sans-serif;
+  padding:18px; min-width:900px;
+}
+.mono{font-family:'Space Mono',monospace;}
+.rack{max-width:1180px;margin:0 auto;}
+
+/* ---------- header ---------- */
+.transport{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line); border-radius:6px;
+  padding:14px 18px; display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+  box-shadow: inset 0 1px 0 var(--panel-highlight), var(--shadow-1);
+}
+.brand{font-family:'Space Mono',monospace; font-weight:700; letter-spacing:2px; font-size:19px; color:var(--label);}
+.brand .sub{display:block; font-family:'Archivo Narrow',sans-serif; font-weight:500; letter-spacing:1.5px; font-size:10.5px; color:var(--label-dim); text-transform:uppercase; margin-top:2px;}
+.controls{display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-left:auto;}
+.play-btn{
+  background:var(--amber-dim); color:var(--amber); border:1px solid var(--amber);
+  font-family:'Space Mono',monospace; font-weight:700; letter-spacing:1px;
+  padding:9px 16px; border-radius:4px; cursor:pointer; font-size:13px;
+}
+.play-btn.on{background:var(--amber); color:var(--ink);}
+.knob-group{display:flex; flex-direction:column; align-items:flex-start; gap:2px;}
+.knob-group label{font-size:9.5px; letter-spacing:1.5px; color:var(--label-dim); text-transform:uppercase;}
+.knob-group .row{display:flex; align-items:center; gap:6px;}
+.knob-group span{font-family:'Space Mono',monospace; font-size:11.5px; color:var(--amber); min-width:26px;}
+input[type=range]{accent-color:var(--amber); width:90px;}
+select{
+  background:var(--panel2); color:var(--label); border:1px solid var(--line);
+  border-radius:3px; padding:4px 6px; font-family:'Space Mono',monospace; font-size:11px;
+}
+button.ghost{
+  background:transparent; border:1px solid var(--line); color:var(--label-dim);
+  font-family:'Archivo Narrow',sans-serif; font-weight:600; letter-spacing:1px; font-size:11px;
+  padding:8px 12px; border-radius:4px; cursor:pointer; text-transform:uppercase;
+}
+button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
+
+/* ---------- clock bank ---------- */
+.clock-bank{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(88px,1fr)); gap:8px; margin-top:12px;
+}
+.clock-add-btn{
+  background:var(--panel); border:1px dashed var(--line-dim); color:var(--label-dim);
+  border-radius:5px; cursor:pointer; font-family:'Space Mono',monospace; font-size:20px;
+  display:flex; align-items:center; justify-content:center; min-height:96px;
+}
+.clock-add-btn:hover{color:var(--amber); border-color:var(--amber-dim);}
+.clock-add-btn:disabled{opacity:0.35; cursor:not-allowed;}
+.clock-remove-btn{
+  position:absolute; top:4px; right:5px; background:none; border:none; color:var(--label-dim);
+  cursor:pointer; font-size:11px; line-height:1; padding:0;
+}
+.clock-remove-btn:hover{color:var(--red);}
+.clock-remove-btn:disabled{opacity:0.25; cursor:not-allowed;}
+
+/* ---------- accent clock — deliberately separate from the clock bank above: its own row,
+   its own color, never selectable as a track's clockA/clockB ---------- */
+.accent-row{display:flex; align-items:center; gap:10px; margin-top:8px;}
+.accent-module{
+  background:var(--panel); border:1px solid var(--violet); border-radius:5px;
+  padding:8px 14px; text-align:center; display:flex; align-items:center; gap:14px;
+}
+.accent-module .clock-led{margin:0;}
+.accent-module .clock-name{color:var(--violet); font-weight:700;}
+.accent-hint{font-size:10px; color:var(--label-dim); line-height:1.4;}
+.clock-module{
+  background:var(--panel); border:1px solid var(--line-dim); border-radius:5px;
+  padding:10px 8px; text-align:center; position:relative;
+  border-top:2px solid var(--clock-color);
+}
+.clock-led{
+  width:9px; height:9px; border-radius:50%; margin:0 auto 6px;
+  background:var(--clock-color); opacity:0.18; box-shadow:0 0 0 rgba(0,0,0,0);
+  transition:opacity .04s linear, box-shadow .04s linear;
+}
+.clock-led.lit{opacity:1; box-shadow:0 0 8px 1px var(--clock-color);}
+.clock-name{font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:1px; color:var(--label-dim); margin-bottom:6px;}
+.clock-param-label{font-size:8.5px; letter-spacing:1px; color:var(--label-dim); text-transform:uppercase; margin-top:1px; margin-bottom:4px;}
+.clock-param{display:flex; align-items:center; justify-content:center; gap:6px;}
+.clock-param span{font-family:'Space Mono',monospace; font-size:13px; min-width:16px; color:var(--label);}
+.stepbtn{
+  background:var(--panel2); border:1px solid var(--line); color:var(--label-dim);
+  width:18px; height:18px; border-radius:3px; cursor:pointer; font-size:11px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+}
+.stepbtn:hover{color:var(--amber); border-color:var(--amber);}
+.lfo-toggle{
+  margin-top:7px; width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--label-dim);
+  font-family:'Space Mono',monospace; font-size:8.5px; letter-spacing:1px; padding:3px 0; border-radius:3px; cursor:pointer;
+}
+.lfo-toggle.active{background:var(--cyan); color:var(--ink); border-color:var(--cyan);}
+.lfo-btn{
+  background:var(--panel2); color:var(--label-dim); border:1px solid var(--line);
+  font-family:'Space Mono',monospace; font-weight:700; letter-spacing:1px;
+  padding:9px 14px; border-radius:4px; cursor:pointer; font-size:12px;
+}
+.lfo-btn.on{background:var(--cyan); color:var(--ink); border-color:var(--cyan);}
+.lfo-scope{display:flex; align-items:center; padding:2px; background:var(--panel); border-radius:4px;}
+#lfoWaveSvg{border-radius:4px; display:block;}
+
+/* ---------- tabs ---------- */
+.tabbar{display:flex; gap:6px; margin-top:12px;}
+.tab-btn{
+  background:var(--panel); border:1px solid var(--line-dim); color:var(--label-dim);
+  font-family:'Space Mono',monospace; font-weight:700; letter-spacing:1.5px; font-size:11px;
+  padding:8px 16px; border-radius:5px 5px 0 0; cursor:pointer;
+}
+.tab-btn.active{background:var(--panel2); color:var(--amber); border-color:var(--amber-dim); border-bottom:2px solid var(--amber);}
+
+/* ---------- midi map ---------- */
+.midi-row{
+  background:var(--panel); border:1px solid var(--line-dim); border-radius:5px;
+  display:grid; grid-template-columns:1fr 70px 80px 60px; align-items:center; gap:12px;
+  padding:8px 12px;
+}
+.midi-row .pname{font-family:'Space Mono',monospace; font-size:11px;}
+.midi-row input.ccnum{
+  width:60px; background:var(--panel2); color:var(--amber); border:1px solid var(--line);
+  border-radius:3px; padding:5px 6px; font-family:'Space Mono',monospace; font-size:12px; text-align:center;
+}
+.midi-row.conflict input.ccnum{border-color:var(--red); color:var(--red);}
+.midi-row .learn-btn{
+  background:var(--panel2); border:1px solid var(--line); color:var(--label-dim);
+  font-family:'Space Mono',monospace; font-size:10px; letter-spacing:1px; padding:6px 8px; border-radius:3px; cursor:pointer;
+}
+.midi-row .learn-btn.listening{background:var(--cyan); color:var(--ink); border-color:var(--cyan);}
+.midi-row .clear-btn{
+  background:transparent; border:1px solid var(--line); color:var(--label-dim);
+  font-size:10px; padding:6px 8px; border-radius:3px; cursor:pointer;
+}
+
+/* ---------- song status (rack tab) ---------- */
+.song-status{
+  background:var(--amber-dim); color:var(--amber); border:1px solid var(--amber); border-radius:5px;
+  padding:9px 14px; margin-bottom:10px; font-family:'Space Mono',monospace; font-size:12px; letter-spacing:1px;
+}
+
+/* ---------- patterns tab ---------- */
+.pattern-toolbar{display:flex; gap:8px; margin:10px 0; flex-wrap:wrap;}
+.pattern-library{
+  display:flex; flex-wrap:wrap; gap:10px; min-height:70px; padding:12px;
+  background:var(--panel); border:1px dashed var(--line-dim); border-radius:6px;
+}
+.pattern-block{
+  background:var(--panel2); border:1px solid var(--line); border-radius:5px; padding:10px 12px;
+  min-width:130px; cursor:grab; user-select:none;
+}
+.pattern-block.active{border-color:var(--amber); box-shadow:0 0 0 1px var(--amber);}
+.pattern-block.playing{border-color:var(--cyan); box-shadow:0 0 8px 1px var(--cyan);}
+.pattern-block .pname{font-family:'Space Mono',monospace; font-size:11.5px; color:var(--label);}
+.pattern-block .pmeta{font-size:9px; color:var(--label-dim); margin-top:3px; letter-spacing:.5px; text-transform:uppercase;}
+
+.song-bar{display:flex; align-items:flex-end; gap:16px; margin:18px 0 10px; flex-wrap:wrap;}
+.song-bar input[type=text]{
+  background:var(--panel2); border:1px solid var(--line); color:var(--label); border-radius:3px;
+  padding:6px 8px; font-size:12px; min-width:200px;
+}
+
+.timeline{
+  display:flex; gap:8px; padding:14px; background:var(--panel); border:1px dashed var(--line-dim);
+  border-radius:6px; min-height:84px; overflow-x:auto; align-items:flex-start;
+}
+.timeline-slot{
+  background:var(--panel2); border:1px solid var(--line); border-radius:5px; padding:9px 10px 8px;
+  min-width:120px; position:relative; cursor:grab; flex:0 0 auto;
+}
+.timeline-slot.playing{border-color:var(--cyan); box-shadow:0 0 8px 1px var(--cyan);}
+.timeline-slot .sname{font-family:'Space Mono',monospace; font-size:10.5px; padding-right:14px;}
+.timeline-slot .srepeat{
+  width:44px; margin-top:6px; background:var(--panel); border:1px solid var(--line); color:var(--amber);
+  font-size:11px; text-align:center; border-radius:3px; font-family:'Space Mono',monospace;
+}
+.timeline-slot .sremove{
+  position:absolute; top:4px; right:5px; background:none; border:none; color:var(--label-dim);
+  cursor:pointer; font-size:12px; line-height:1; padding:0;
+}
+.timeline-slot .sremove:hover{color:var(--red);}
+.timeline-empty-hint{color:var(--label-dim); font-size:10.5px; align-self:center; padding:10px;}
+
+/* ---------- in-page modal (replaces prompt/alert/confirm, which sandboxed
+   preview frames silently block) ---------- */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(10,9,8,0.72); z-index:1000;
+  display:none; align-items:center; justify-content:center;
+}
+.modal-box{
+  background:var(--panel2); border:1px solid var(--line); border-radius:7px; padding:20px 22px;
+  min-width:280px; max-width:360px; box-shadow:var(--shadow-2);
+}
+.modal-title{font-family:'Space Mono',monospace; font-size:13px; letter-spacing:1px; color:var(--label); margin-bottom:8px;}
+.modal-msg{font-size:12px; color:var(--label-dim); line-height:1.5; margin-bottom:12px;}
+.modal-input{
+  width:100%; background:var(--panel); border:1px solid var(--line); color:var(--label);
+  border-radius:4px; padding:8px 10px; font-family:'Space Mono',monospace; font-size:12.5px; margin-bottom:14px;
+}
+.modal-actions{display:flex; justify-content:flex-end; gap:8px;}
+
+/* ---------- matrix ---------- */
+.matrix{margin-top:12px; display:flex; flex-direction:column; gap:6px;}
+.track-row{
+  background:var(--panel); border:1px solid var(--line-dim); border-radius:5px;
+  display:grid; grid-template-columns:172px 176px 118px 1fr 70px; align-items:center; gap:10px;
+  padding:8px 12px;
+}
+.track-head{display:flex; align-items:center; gap:7px; min-width:0;}
+.out-led{width:9px; height:9px; border-radius:50%; background:var(--amber); opacity:.15; transition:opacity .05s, box-shadow .05s; flex:0 0 auto;}
+.out-led.lit{opacity:1; box-shadow:0 0 7px 1px var(--amber);}
+.voiceSelect{
+  font-family:'Space Mono',monospace; font-size:10.5px; letter-spacing:0.3px; color:var(--label);
+  background:var(--panel2); border:1px solid var(--line); border-radius:3px; padding:3px 4px;
+  flex:1; min-width:0;
+}
+.mute-btn,.solo-btn,.accent-btn{
+  width:19px; height:19px; border-radius:3px; border:1px solid var(--line); background:var(--panel2);
+  color:var(--label-dim); font-size:9.5px; font-family:'Space Mono',monospace; cursor:pointer; margin-left:auto;
+}
+.solo-btn,.accent-btn{margin-left:3px;}
+.mute-btn.active{background:var(--red); color:var(--ink); border-color:var(--red);}
+.solo-btn.active{background:var(--amber); color:var(--ink); border-color:var(--amber);}
+.accent-btn.active{background:var(--violet); color:var(--ink); border-color:var(--violet);}
+
+.logic-config{display:flex; align-items:center; gap:5px;}
+.logic-config select{width:100%; font-size:10px; padding:4px 3px;}
+.gateSelect{color:var(--amber); border-color:var(--amber-dim); text-align:center;}
+
+.mod-panel{display:flex; flex-direction:column; gap:5px; min-width:0;}
+.mod-row{display:flex; align-items:center; gap:5px;}
+.mod-label{font-family:'Space Mono',monospace; font-size:8px; letter-spacing:1px; color:var(--label-dim); width:24px; flex:0 0 auto;}
+.mod-row input[type=range]{flex:1; min-width:0; width:auto; height:4px;}
+.mod-row input[type=range].lfoAmtSlider{accent-color:var(--cyan);}
+.lfo-toggle-sm{
+  width:18px; height:18px; flex:0 0 auto; background:var(--panel2); border:1px solid var(--line);
+  color:var(--label-dim); border-radius:3px; cursor:pointer; padding:0; font-size:9px; line-height:1;
+}
+.lfo-toggle-sm.active{background:var(--cyan); color:var(--ink); border-color:var(--cyan);}
+.mod-row .nudgeVal{font-family:'Space Mono',monospace; font-size:11px; min-width:16px; text-align:center; color:var(--label); flex:0 0 auto;}
+
+.trace-stack{display:flex; flex-direction:column; gap:2px;}
+.trace{display:grid; gap:2px;}
+.cell{
+  height:9px; border-radius:1px; background:var(--line-dim); position:relative; box-sizing:border-box;
+}
+.trace-a .cell.lit{background:var(--clock-color-a, var(--cyan)); opacity:.55;}
+.trace-b .cell.lit{background:var(--clock-color-b, var(--cyan)); opacity:.55;}
+.trace-out .cell{height:13px;}
+.trace-out .cell.lit{background:var(--amber);}
+.cell.accent-mark{box-shadow:inset 0 0 0 1px var(--violet);}
+.trace-out .cell.accented{background:var(--violet); box-shadow:0 0 6px 1px var(--violet);}
+.cell.beat-start{border-left:1px solid var(--line);}
+.cell.bar-start{border-left:2px solid var(--label-dim);}
+.cell.cursor::after{
+  content:''; position:absolute; inset:-2px -1px; border:1px solid var(--label); border-radius:2px; opacity:.55;
+}
+.trace-label{font-size:7.5px; letter-spacing:1px; color:var(--label-dim); text-transform:uppercase; width:14px;}
+
+.vol-wrap{display:flex; align-items:center; gap:6px;}
+.vol-wrap input{width:100%;}
+
+.legend{
+  margin-top:16px; padding:12px 16px; border:1px solid var(--line-dim); border-radius:5px;
+  background:var(--panel); font-size:10.5px; color:var(--label-dim); line-height:1.7;
+}
+.legend b{color:var(--label); font-family:'Space Mono',monospace; font-weight:700;}
+.legend .gate-def{color:var(--cyan); font-family:'Space Mono',monospace;}
+</style>
+</head>
+<body>
+<div class="rack">
+
+  <div class="transport">
+    <div class="brand">LOGIC∴RHYTHM<span class="sub">gate-sequenced percussion</span></div>
+    <div class="controls">
+      <button id="playBtn" class="play-btn">▶ RUN</button>
+      <div class="knob-group"><label>Tempo</label><div class="row"><input type="range" id="bpmSlider" min="60" max="200" value="120"><span id="bpmVal">120</span></div></div>
+      <div class="knob-group"><label>Grid</label><div class="row"><select id="stepsSelect">
+        <option value="12-waltz">12 (3/4 Waltz)</option>
+        <option value="12-triplet">12 (12/8)</option>
+        <option value="16-straight" selected>16 (4/4)</option>
+        <option value="24-waltz">24 (3/4 Waltz ×2)</option>
+        <option value="24-triplet">24 (12/8 ×2)</option>
+        <option value="32-straight">32 (4/4 ×2)</option>
+      </select></div></div>
+      <div class="knob-group"><label>Swing</label><div class="row"><input type="range" id="swingSlider" min="0" max="50" value="0"><span id="swingVal">0%</span></div></div>
+      <div class="knob-group"><label>Master</label><div class="row"><input type="range" id="masterVol" min="0" max="100" value="80"></div></div>
+      <button id="lfoBtn" class="lfo-btn">∿ LFO</button>
+      <div class="knob-group"><label>Lfo Period</label><div class="row"><input type="range" id="lfoPeriodSlider" min="8" max="180" value="45"><span id="lfoPeriodVal">45s</span></div></div>
+      <div class="knob-group"><label>Lfo Depth</label><div class="row"><input type="range" id="lfoDepthSlider" min="0" max="100" value="40"><span id="lfoDepthVal">40%</span></div></div>
+      <div class="knob-group"><label>Lfo Wave</label><div class="row"><select id="lfoWaveSelect">
+        <option value="sine">Sine</option><option value="triangle">Triangle</option>
+        <option value="square">Square</option><option value="random">Random</option>
+      </select></div></div>
+      <div class="lfo-scope" title="LFO waveform + live phase">
+        <svg id="lfoWaveSvg" viewBox="0 0 160 32" width="160" height="32">
+          <rect x="0" y="0" width="160" height="32" rx="4" fill="var(--panel2)" stroke="var(--line-dim)"/>
+          <path id="lfoWavePath" d="" fill="none" stroke="var(--cyan)" stroke-width="1.5"/>
+          <circle id="lfoPhaseDot" cx="0" cy="16" r="3" fill="var(--amber)"/>
+        </svg>
+      </div>
+      <button id="randomBtn" class="ghost">⚂ Randomize</button>
+      <button id="resetBtn" class="ghost">Reset</button>
+      <button id="midiBtn" class="lfo-btn">♪ MIDI</button>
+      <span id="midiStatus" class="mono" style="font-size:9.5px; color:var(--label-dim); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">not connected</span>
+      <button id="themeToggleBtn" class="ghost">☀ Light</button>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="rack">RACK</button>
+    <button class="tab-btn" data-tab="midi">MIDI MAP</button>
+    <button class="tab-btn" data-tab="patterns">PATTERNS</button>
+  </div>
+
+  <div id="rackView">
+  <div id="songStatus" class="song-status" style="display:none;"></div>
+  <div class="clock-bank" id="clockBank"></div>
+
+  <div class="accent-row">
+    <div class="accent-module" id="accentModule" style="--clock-color:var(--violet);">
+      <div class="clock-led" id="accentLed"></div>
+      <div class="clock-name">ACCENT</div>
+      <div class="clock-param">
+        <button class="stepbtn" data-accent="division" data-d="-1">–</button>
+        <span id="accentDiv">16</span>
+        <button class="stepbtn" data-accent="division" data-d="1">+</button>
+      </div>
+      <div class="clock-param-label">divide</div>
+      <div class="clock-param">
+        <button class="stepbtn" data-accent="offset" data-d="-1">–</button>
+        <span id="accentOff">8</span>
+        <button class="stepbtn" data-accent="offset" data-d="1">+</button>
+      </div>
+      <div class="clock-param-label">offset</div>
+    </div>
+    <div class="accent-hint">A single dedicated clock, separate from the bank above — never selectable as a track's A/B input.<br>
+    Set it to the beat you want emphasized, then flip a voice's <b style="color:var(--violet)">A</b> flag (next to its Mute/Solo) to accent it there.</div>
+  </div>
+
+  <div class="matrix" id="matrix"></div>
+
+  <div class="legend">
+    <b>How it works —</b> the clocks above each pulse at their own step-division. Each drum voice listens to two clocks, A and B,
+    through a logic gate; the gate's output triggers the sound. Change a clock's division/offset or a track's gate and every
+    voice downstream reshuffles in real time. Use the <b>+</b> tile to add a clock (up to 12) or the <b>×</b> on a module to
+    remove one (down to 2) — anything pointing at a removed clock falls back to clock I automatically. New clocks start
+    unmapped in MIDI; bind them from the MIDI MAP tab with Learn.<br>
+    <span class="gate-def">AND</span> both must pulse · <span class="gate-def">OR</span> either pulses ·
+    <span class="gate-def">XOR</span> exactly one pulses (never both) · <span class="gate-def">NAND/NOR/XNOR</span> inverted
+    versions of the above · <span class="gate-def">A</span> ignore B, just play clock A ·
+    <span class="gate-def">NOT A</span> play on every step A does <i>not</i> pulse.<br>
+    <b>LFO —</b> turn the ∿ LFO button on, then tick the small LFO tag under any clock to let that clock's divide/offset drift
+    slowly up and down over the period set above (each enabled clock drifts slightly out of phase with the others, so the
+    whole rack breathes rather than jumping in unison). Drift continues even while stopped.<br>
+    <b>MIDI —</b> click ♪ MIDI and allow access to control the rack from a hardware or software MIDI controller
+    (Chrome/Edge, requires the page be served over https or localhost). Every CC number is reassignable in the
+    <b>MIDI MAP</b> tab above — hit Learn and move a control on your device to bind it, or type a CC number directly.
+    If clicking ♪ MIDI reports "access denied" or "blocked," it's almost always the page's environment, not your
+    controller — an embedded preview frame generally isn't allowed to request hardware MIDI access at all. Save
+    the file and open it directly in its own browser tab (double-click it, or open it from your downloads) and
+    the permission prompt should appear normally.
+  </div>
+  </div>
+
+  <div id="midiView" style="display:none;">
+    <div class="legend" style="margin-top:0;">
+      <b>MIDI Map —</b> each row below is one parameter. Type a CC number (0–127) to bind it by hand, or press
+      <b>Learn</b> and then move a knob/fader on your MIDI device — the next Control Change message received binds
+      to that row automatically. Clear a row to stop it responding to MIDI. Rows sharing the same CC number are
+      flagged — only the last-registered one will respond. Defaults are pre-wired to a stock <b>Akai MIDImix</b>:
+      its 8 faders run the 7 track volumes plus master, and its knobs cover clock division/offset, tempo, swing,
+      and the LFO — no editing needed if that's your controller. Its mute/rec-arm buttons send Notes rather than
+      CC, though, so those aren't used here; everything is still reachable via a spare knob or the Learn button.
+      <span id="learnStatus" class="mono" style="display:block; margin-top:6px; color:var(--cyan);"></span>
+    </div>
+    <div class="matrix" id="midiMapTable"></div>
+  </div>
+
+  <div id="patternsView" style="display:none;">
+    <div class="legend" style="margin-top:0;">
+      <b>Patterns —</b> save the whole current rack — clocks, gates, tempo, swing, LFO, everything — as a named block.
+      Click a block to load it onto the Rack tab for editing (it swaps in live, on the next step, if something's already
+      playing). Drag blocks onto the timeline to build a song; each slot's number is how many loops of that pattern play
+      before the song advances to the next one.
+    </div>
+    <div class="pattern-toolbar">
+      <button id="savePatternBtn" class="ghost">+ Save Current Rack as Pattern</button>
+      <button id="updatePatternBtn" class="ghost">Update Selected</button>
+      <button id="dupPatternBtn" class="ghost">Duplicate Selected</button>
+      <button id="delPatternBtn" class="ghost">Delete Selected</button>
+    </div>
+    <div class="pattern-library" id="patternLibrary"></div>
+
+    <div class="song-bar">
+      <div class="knob-group"><label>Song Title</label><input type="text" id="songTitleInput" class="mono"></div>
+      <label class="mono" style="font-size:10px; color:var(--label-dim); display:flex; align-items:center; gap:5px;">
+        <input type="checkbox" id="loopSongChk"> LOOP
+      </label>
+      <button id="playSongBtn" class="play-btn">▶ PLAY SONG</button>
+      <button id="stopSongBtn" class="ghost">■ Stop Song</button>
+    </div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay"><div class="modal-box" id="modalBox"></div></div>
+
+<script>
+/* ================= data model ================= */
+/* Names and colors scale to however many clocks exist — no longer fixed at 6. The first six
+   colors match the original hand-picked hues (kept as CSS vars so the light/dark theme still
+   controls them); anything beyond that is generated on a golden-angle hue rotation so it stays
+   visually distinct without needing to hand-pick more colors. */
+function clockLabel(i){
+  const map=[[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+  let n=i+1, res='';
+  for(const [v,s] of map){ while(n>=v){ res+=s; n-=v; } }
+  return res;
+}
+function clockColor(i){
+  if(i<6) return `var(--c${i})`;
+  const hue = Math.round((i*137.508) % 360); // golden angle — evenly spread, never repeats nearby
+  return `hsl(${hue}, 45%, 55%)`;
+}
+const MIN_CLOCKS = 2, MAX_CLOCKS = 12;
+/* Ordered ascending by division (1,2,3,4,5,8) purely so Clock I–VI reads as a sequence at a
+   glance. Track clockA/clockB indices below were remapped to point at the same divisions as
+   before — this is a cosmetic reorder, not a behavior change. */
+let clocks = [
+  {division:1, offset:0, lfo:false},
+  {division:2, offset:0, lfo:false},
+  {division:3, offset:0, lfo:false},
+  {division:4, offset:0, lfo:false},
+  {division:5, offset:0, lfo:false},
+  {division:8, offset:4, lfo:false},
+];
+
+const GATES = ['AND','OR','XOR','NAND','NOR','XNOR','A','NOTA'];
+function gateFn(g,a,b){
+  switch(g){
+    case 'AND': return a&&b;
+    case 'OR': return a||b;
+    case 'XOR': return a!==b;
+    case 'NAND': return !(a&&b);
+    case 'NOR': return !(a||b);
+    case 'XNOR': return a===b;
+    case 'A': return a;
+    case 'NOTA': return !a;
+  }
+}
+
+let tracks = [
+  {id:'kick', name:'KICK', voice:'kick', clockA:3, clockB:0, gate:'AND', vol:0.9, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+  {id:'snare', name:'SNARE', voice:'snare', clockA:5, clockB:0, gate:'AND', vol:0.8, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+  {id:'clap', name:'CLAP', voice:'clap', clockA:5, clockB:2, gate:'XOR', vol:0.6, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+  {id:'chat', name:'CLOSED HAT', voice:'chatClosed', clockA:1, clockB:0, gate:'AND', vol:0.5, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+  {id:'ohat', name:'OPEN HAT', voice:'chatOpen', clockA:2, clockB:1, gate:'AND', vol:0.45, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+  {id:'tom', name:'TOM', voice:'tom', clockA:4, clockB:3, gate:'XOR', vol:0.65, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+  {id:'rim', name:'RIM', voice:'rim', clockA:4, clockB:2, gate:'AND', vol:0.5, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+];
+/* A single, dedicated clock — separate from the main clock bank, never selectable as a
+   track's clockA/clockB, never competing with the bank for slots. Its only job is marking
+   WHERE an accent falls; a track only responds to it if that track's own Accent flag is on.
+   Default: division 16, offset 8 — a single hit on beat 3 of a 16-step bar, matching the
+   worked example (flip the Accent flag on the snare to hear it). */
+let accentClock = {division:16, offset:8};
+/* A flat boost on the accented hit alone turned out too subtle to hear reliably — roughly
+   +2.6dB on top of an otherwise-unchanged baseline, easy to miss on a short transient like a
+   closed hat. Real drum-machine accent (the classic Roland TR-808/909 behavior) works by
+   contrast: accented hits get louder AND every other hit from that same voice gets quieter, so
+   the difference is felt even on fast, short sounds. Ratio between the two is now 2:1 (~6dB),
+   which is much harder to miss. */
+const ACCENT_BOOST = 1.3; // accented hits, louder than the voice's normal level
+const ACCENT_DUCK = 0.65; // every other hit from an accent-flagged voice, quieter
+
+/* Old saved patterns predate velocity/swing/accent/LFO-amount — fill in sane defaults so they
+   still load cleanly. velocityLfoAmt/swingLfoAmt default to 1 (not 0) specifically for
+   BACKWARD COMPATIBILITY: a pattern saved with its LFO flag already on, before this per-voice
+   amount existed, was getting full-depth modulation — defaulting the missing amount to 1
+   preserves that sound instead of silently going quiet. Freshly-created tracks (see the tr()
+   helper and the default rack below) explicitly set this to 0 instead, which is the correct
+   starting point for a control you haven't turned up yet. */
+function normalizeTracks(arr){
+  arr.forEach(t=>{
+    if(t.velocity===undefined) t.velocity=1;
+    if(t.velocityLfo===undefined) t.velocityLfo=false;
+    if(t.velocityLfoAmt===undefined) t.velocityLfoAmt=1;
+    if(t.swingAmt===undefined) t.swingAmt=0;
+    if(t.swingLfo===undefined) t.swingLfo=false;
+    if(t.swingLfoAmt===undefined) t.swingLfoAmt=1;
+    if(t.accent===undefined) t.accent=false;
+    if(t.nudge===undefined) t.nudge=0;
+    if(t.voice===undefined) t.voice = LEGACY_VOICE_MAP[t.id] || t.id;
+  });
+  return arr;
+}
+function accentPulse(stepIdx){
+  const d = Math.max(1, accentClock.division);
+  return (stepIdx % d) === (accentClock.offset % d);
+}
+
+let steps = 16;
+let meterKey = '4-straight'; // always kept in sync with steps — see METER_DEFS above
+let bpm = 120;
+let swingPct = 0;
+let masterVolVal = 0.8;
+
+/* ---- LFO state ---- */
+let lfoEnabled = false;
+let lfoPeriod = 45;   // seconds per full drift cycle
+let lfoDepth = 0.4;   // 0..1, scaled to max +/-3 steps
+let lfoWave = 'sine';  // sine | triangle | square | random
+let lfoStartTime = null; // set once an AudioContext exists; ctx.currentTime keeps advancing even when stopped
+
+/* Shape of one LFO cycle, phase in radians, returns -1..1. Triangle via asin(sin) is a cheap,
+   exact closed form; square is a hard sign flip; random is handled by the caller (lfoValue)
+   since it isn't phase-continuous — it holds a new value once per cycle. */
+function waveShape(phase, type){
+  switch(type){
+    case 'triangle': return (2/Math.PI)*Math.asin(Math.sin(phase));
+    case 'square': { const s=Math.sin(phase); return s>=0?1:-1; }
+    case 'sine': default: return Math.sin(phase);
+  }
+}
+/* Deterministic pseudo-random in [0,1) from an integer + a seed — same inputs always give the
+   same output, so re-renders between animation frames don't jitter within a held cycle. */
+function hashToUnit(i, seed){
+  const x = Math.sin(i*12.9898 + seed*78.233)*43758.5453;
+  return x - Math.floor(x);
+}
+/* elapsedSec/period define where in its cycle the LFO is; phaseOffsetFrac (0..1) staggers this
+   particular source so multiple destinations sharing one LFO don't all move in lockstep; seed
+   distinguishes sources for the 'random' wave, which jumps to a new held value once per cycle. */
+function lfoValue(elapsedSec, period, seed, type, phaseOffsetFrac){
+  const shifted = elapsedSec + (phaseOffsetFrac||0)*period;
+  if(type==='random'){
+    const cycleIndex = Math.floor(shifted/period);
+    return hashToUnit(cycleIndex, seed)*2-1;
+  }
+  return waveShape((shifted/period)*2*Math.PI, type);
+}
+
+function effectiveClock(idx){
+  const c = clocks[idx];
+  if(!lfoEnabled || !c.lfo || !ctx || lfoStartTime===null){
+    return {division:c.division, offset:c.offset};
+  }
+  const elapsed = ctx.currentTime - lfoStartTime;
+  const maxDrift = lfoDepth*3;
+  const divVal = lfoValue(elapsed, lfoPeriod, idx*2+1, lfoWave, idx/clocks.length);
+  const offVal = lfoValue(elapsed, lfoPeriod, idx*2+2, lfoWave, idx/clocks.length+0.15);
+  const divDelta = Math.round(divVal*maxDrift);
+  const division = Math.min(16, Math.max(1, c.division+divDelta));
+  const offDelta = Math.round(offVal*maxDrift);
+  const offset = ((c.offset+offDelta)%division+division)%division;
+  return {division, offset};
+}
+/* Per-voice velocity (multiplies the track's volume at hit time) and per-voice swing (extra
+   timing offset on top of the global swing, odd steps only) — each independently routable to
+   the LFO via that track's two little ∿ toggles. Once routed, the VEL/SWG slider becomes a
+   plain attenuator on the shared LFO signal for that one destination: full left (0) is
+   silence — the LFO changes nothing here even though it's running — full right (1) passes it
+   through at full depth. No inversion; it only ever scales the signal down, never flips it.
+   The global LFO Depth knob still scales everything on top of that, same as before; this is a
+   per-destination send amount, not a replacement for the master depth. */
+function effectiveTrackVelocity(tr, idx){
+  const base = tr.velocity===undefined?1:tr.velocity;
+  if(!lfoEnabled || !tr.velocityLfo || !ctx || lfoStartTime===null) return base;
+  const elapsed = ctx.currentTime - lfoStartTime;
+  const v = lfoValue(elapsed, lfoPeriod, 100+idx*3, lfoWave, idx/7);
+  const amt = Math.max(0, tr.velocityLfoAmt===undefined?1:tr.velocityLfoAmt); // 0..1 attenuator
+  return Math.max(0, Math.min(1.5, base + v*amt*lfoDepth*0.6));
+}
+function effectiveTrackSwing(tr, idx){
+  const base = tr.swingAmt||0;
+  if(!lfoEnabled || !tr.swingLfo || !ctx || lfoStartTime===null) return base;
+  const elapsed = ctx.currentTime - lfoStartTime;
+  const v = lfoValue(elapsed, lfoPeriod, 200+idx*3, lfoWave, idx/7+0.2);
+  const amt = Math.max(0, tr.swingLfoAmt===undefined?1:tr.swingLfoAmt); // 0..1 attenuator
+  return Math.max(0, Math.min(50, base + v*amt*lfoDepth*25));
+}
+
+/* ---- in-page modal ----
+   Sandboxed preview frames (including this one) silently block window.prompt/alert/confirm,
+   so every place that used to call those now goes through this instead. */
+function closeModal(){
+  document.getElementById('modalOverlay').style.display='none';
+  document.getElementById('modalBox').innerHTML='';
+}
+function showModal(opts){
+  const overlay=document.getElementById('modalOverlay');
+  const box=document.getElementById('modalBox');
+  box.innerHTML = `
+    ${opts.title? `<div class="modal-title">${opts.title}</div>` : ''}
+    ${opts.message? `<div class="modal-msg">${opts.message}</div>` : ''}
+    ${opts.input? `<input type="text" id="modalInput" class="modal-input">` : ''}
+    <div class="modal-actions">
+      ${opts.showCancel!==false ? `<button id="modalCancel" class="ghost">${opts.cancelLabel||'Cancel'}</button>` : ''}
+      <button id="modalConfirm" class="play-btn">${opts.confirmLabel||'OK'}</button>
+    </div>
+  `;
+  overlay.style.display='flex';
+  const confirmBtn=document.getElementById('modalConfirm');
+  const cancelBtn=document.getElementById('modalCancel');
+  const inputEl=document.getElementById('modalInput');
+  if(inputEl) inputEl.value = opts.defaultValue||'';
+  function doConfirm(){ const val = inputEl? inputEl.value : true; closeModal(); if(opts.onConfirm) opts.onConfirm(val); }
+  function doCancel(){ closeModal(); if(opts.onCancel) opts.onCancel(); }
+  confirmBtn.addEventListener('click', doConfirm);
+  if(cancelBtn) cancelBtn.addEventListener('click', doCancel);
+  if(inputEl){
+    inputEl.focus(); inputEl.select();
+    inputEl.addEventListener('keydown', e=>{ if(e.key==='Enter') doConfirm(); if(e.key==='Escape') doCancel(); });
+  }
+}
+function promptModal(title, defaultValue, onConfirm){
+  showModal({title, input:true, defaultValue, confirmLabel:'Save', onConfirm});
+}
+function confirmModal(message, onConfirm){
+  showModal({title:'Confirm', message, confirmLabel:'Delete', onConfirm});
+}
+function alertModal(message){
+  showModal({message, confirmLabel:'OK', showCancel:false});
+}
+
+/* ---- Patterns & song state ---- */
+let patterns = [];          // {id, name, state:{clocks,tracks,steps,bpm,swingPct,lfoEnabled,lfoPeriod,lfoDepth}}
+let timeline = [];          // {patternId, repeats}
+let songTitle = 'Untitled Song';
+let loopSong = false;
+let selectedPatternId = null;
+let songMode = false, songIndex = -1, songStepsRemaining = 0;
+
+function captureRackState(){
+  return {
+    clocks: JSON.parse(JSON.stringify(clocks)),
+    tracks: JSON.parse(JSON.stringify(tracks)),
+    accentClock: JSON.parse(JSON.stringify(accentClock)),
+    steps, meterKey, bpm, swingPct, lfoEnabled, lfoPeriod, lfoDepth,
+  };
+}
+/* Swap the whole rack to a saved pattern's state. If retimeAtStep is given (the absolute
+   step index about to be scheduled) and audio is running, the transport's origin is shifted
+   so that step lands at the same real time it already would have — so a tempo change between
+   patterns doesn't click or drift, it just takes effect from that step onward. */
+function applyPatternState(state, retimeAtStep){
+  let oldT=null;
+  if(retimeAtStep!==undefined && ctx) oldT = stepTime(retimeAtStep);
+  clocks = JSON.parse(JSON.stringify(state.clocks));
+  tracks = normalizeTracks(JSON.parse(JSON.stringify(state.tracks)));
+  accentClock = state.accentClock ? JSON.parse(JSON.stringify(state.accentClock)) : {division:16, offset:8};
+  steps = state.steps;
+  // patterns saved before meter was explicit only ever used 12/24 to mean 12/8 triplet —
+  // preserve that reading exactly for anything that predates the waltz meter
+  meterKey = state.meterKey || ((steps===12||steps===24) ? '4-triplet' : '4-straight');
+  const stepsSel=document.getElementById('stepsSelect');
+  if(stepsSel){ const opt=gridOptionFor(steps, meterKey); if(opt) stepsSel.value=opt.value; }
+  setTempo(state.bpm);
+  setSwing(state.swingPct);
+  setLfoPeriod(state.lfoPeriod);
+  setLfoDepth(state.lfoDepth);
+  setLfoEnabled(state.lfoEnabled);
+  if(oldT!==null){ startTime = oldT - retimeAtStep*stepDur; }
+  renderClockBank();
+  renderMatrix();
+  renderAccentClock();
+  lastDrawnStep = -1;
+}
+
+function persistPatterns(){
+  try{ localStorage.setItem('logicRhythmSongData', JSON.stringify({patterns,timeline,songTitle,loopSong})); }catch(e){}
+}
+/* Four ready-made patterns so the tab isn't empty on first visit: the app's own default beat,
+   a 4/4 house groove, a plain rock beat, and a pattern built entirely from odd-numbered clocks
+   (3,5,7,9,11,13) with no shared pulse between any two of them — nothing here ever lines up
+   into a felt "beat 1", which is the point. Fresh object literals each call, so nothing is
+   shared by reference with the live rack or between the patterns themselves. */
+function buildExamplePatterns(){
+  const stdClocks = ()=>[
+    {division:1,offset:0,lfo:false}, {division:2,offset:0,lfo:false}, {division:3,offset:0,lfo:false},
+    {division:4,offset:0,lfo:false}, {division:5,offset:0,lfo:false}, {division:8,offset:4,lfo:false},
+  ];
+  const tr = (id,name,clockA,clockB,gate,vol,mute)=>(
+    {id,name,clockA,clockB,gate,vol,mute:!!mute,solo:false,velocity:1,velocityLfo:false,velocityLfoAmt:0,swingAmt:0,swingLfo:false,swingLfoAmt:0,accent:false,nudge:0,voice:LEGACY_VOICE_MAP[id]||id}
+  );
+  return [
+    { id:'preset-default', name:'Default', state:{
+        clocks:stdClocks(),
+        tracks:[
+          tr('kick','KICK',3,0,'AND',0.9),
+          tr('snare','SNARE',5,0,'AND',0.8),
+          tr('clap','CLAP',5,2,'XOR',0.6),
+          tr('chat','CL HAT',1,0,'AND',0.5),
+          tr('ohat','OP HAT',2,1,'AND',0.45),
+          tr('tom','TOM',4,3,'XOR',0.65),
+          tr('rim','RIM',4,2,'AND',0.5),
+        ],
+        steps:16, bpm:120, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-house', name:'4/4 House', state:{
+        clocks:stdClocks(),
+        tracks:[
+          tr('kick','KICK',3,0,'AND',0.95),          // every quarter — four-on-the-floor
+          tr('snare','SNARE',5,0,'AND',0.5),          // layered under the clap on the backbeat
+          tr('clap','CLAP',5,0,'AND',0.75),           // beats 2 & 4
+          tr('chat','CL HAT',1,0,'AND',0.55),         // steady eighths
+          tr('ohat','OP HAT',1,3,'XOR',0.6),          // classic offbeat open hat (the "and"s)
+          tr('tom','TOM',4,3,'XOR',0.5,true),         // muted — house doesn't usually need it
+          tr('rim','RIM',4,1,'AND',0.35),             // sparse shaker-like tick
+        ],
+        steps:16, bpm:126, swingPct:8, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-rock', name:'Rock', state:{
+        clocks:stdClocks(),
+        tracks:[
+          tr('kick','KICK',3,5,'XOR',0.95),           // beats 1 & 3
+          tr('snare','SNARE',5,0,'AND',0.85),         // beats 2 & 4
+          tr('clap','CLAP',5,0,'AND',0.3,true),       // muted — layer in for a fatter backbeat
+          tr('chat','CL HAT',1,0,'AND',0.6),          // steady eighths
+          tr('ohat','OP HAT',3,0,'AND',0.4,true),     // muted crash-on-the-downbeat, if wanted
+          tr('tom','TOM',4,3,'XOR',0.55,true),        // muted — unmute for fills
+          tr('rim','RIM',4,2,'AND',0.4,true),         // muted — spare accent
+        ],
+        steps:16, bpm:128, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-techno', name:'Techno', state:{
+        clocks:[
+          {division:4,offset:0,lfo:false},  // beats — kick
+          {division:4,offset:2,lfo:false},  // off-beat 8ths — the driving open-hat pulse
+          {division:1,offset:0,lfo:false},  // identity
+          {division:2,offset:0,lfo:false},  // straight 8ths — closed hat
+          {division:5,offset:0,lfo:false},  // spare
+          {division:16,offset:4,lfo:false}, // spare single-hit accent
+        ],
+        tracks:[
+          tr('kick','KICK',0,2,'AND',0.95),          // four-on-the-floor, no ornamentation
+          tr('snare','SNARE',1,2,'AND',0.4,true),    // muted — off-beat option if wanted
+          tr('clap','CLAP',1,2,'AND',0.35,true),     // muted — spare
+          tr('chat','CL HAT',3,2,'AND',0.4),         // straight, driving eighths
+          tr('ohat','OP HAT',1,2,'AND',0.55),        // strict off-beat — the "tss-tss" signature
+          tr('tom','TOM',4,0,'XOR',0.4,true),        // muted — spare
+          tr('rim','RIM',2,2,'AND',0.18),            // quiet constant 16th tick — minimal texture
+        ],
+        steps:16, bpm:132, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-hiphop', name:'Hip-Hop / Boom Bap', state:{
+        clocks:[
+          {division:16,offset:0,lfo:false},  // kick hit — beat 1
+          {division:16,offset:10,lfo:false}, // kick hit — laid-back second hit
+          {division:8,offset:4,lfo:false},   // backbeat
+          {division:16,offset:14,lfo:false}, // ghost note
+          {division:3,offset:0,lfo:false},   // spare
+          {division:1,offset:0,lfo:false},   // identity — every 16th, so global swing is audible
+        ],
+        tracks:[
+          tr('kick','KICK',0,1,'OR',0.9),            // steps 0 & 10 — the "boom... ba-boom"
+          tr('snare','SNARE',2,5,'AND',0.8),         // beats 2 & 4
+          tr('clap','CLAP',2,5,'AND',0.3,true),      // muted — layer for a fatter backbeat
+          tr('chat','CL HAT',5,5,'AND',0.4),         // every 16th — swung by the Swing knob
+          tr('ohat','OP HAT',3,5,'AND',0.3,true),    // muted — spare
+          tr('tom','TOM',4,0,'XOR',0.5,true),        // muted — spare
+          tr('rim','RIM',3,5,'AND',0.3),             // ghost note, low in the mix
+        ],
+        steps:16, bpm:92, swingPct:55, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-waltz', name:'Honky Tonk Waltz', state:{
+        /* A genuine 3/4 bar — 3 beats, not 4 — which needed real support added to the grid
+           system rather than forcing it into the existing 4-beats-per-bar options (12 steps
+           here means something completely different from the 12/8 preset's 12 steps: 3 beats
+           of 4 steps each, not 4 beats of 3). The classic country "boom-chick-chick": kick
+           alone on the downbeat, snare on beats 2 & 3 together. Division-12-at-various-offsets
+           is the same "single precise hit" trick used for One Drop's silent beat 1 and the son
+           clave — here it isolates each of the three beats individually so the backbeat can
+           land on 2 AND 3 without also hitting 1. */
+        clocks:[
+          {division:12,offset:0,lfo:false},  // beat 1 only — the "boom"
+          {division:12,offset:4,lfo:false},  // beat 2 only
+          {division:12,offset:8,lfo:false},  // beat 3 only
+          {division:4,offset:0,lfo:false},   // all three beats
+          {division:1,offset:0,lfo:false},   // identity — every step
+          {division:2,offset:0,lfo:false},   // straight eighths
+          {division:12,offset:11,lfo:false}, // pickup note — the last 16th before the barline
+        ],
+        tracks:[
+          tr('kick','KICK',0,4,'AND',0.9),            // beat 1 — the "boom"
+          tr('snare','SNARE',1,2,'OR',0.7),           // beats 2 & 3 together — "chick-chick"
+          tr('clap','CLAP',1,2,'OR',0.3,true),        // muted — spare backbeat double
+          tr('chat','CLOSED HAT',5,4,'AND',0.4),      // straight eighths — brush texture
+          tr('ohat','OP HAT',0,4,'AND',0.3,true),     // muted — spare crash-style accent on beat 1
+          tr('tom','TOM',6,4,'AND',0.35),             // the pickup note leading into the next bar
+          tr('rim','RIM',5,3,'XOR',0.3,true),         // muted — spare syncopated "and"-lift
+        ],
+        steps:12, meterKey:'3-straight', bpm:126, swingPct:18, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-clave', name:'Son Clave (3-2)', state:{
+        clocks:[
+          {division:6,offset:0,lfo:false}, // clave hits 1 of 2 — combines with the next to land exactly right
+          {division:7,offset:3,lfo:false}, // clave hits 2 of 2
+          {division:4,offset:0,lfo:false}, // simple quarter-note pulse to support the clave
+          {division:4,offset:2,lfo:false}, // off-beat comping
+          {division:1,offset:0,lfo:false}, // identity
+          {division:5,offset:0,lfo:false}, // spare
+        ],
+        tracks:[
+          tr('kick','KICK',2,4,'AND',0.6),           // steady quarter-note support, not the focus
+          tr('snare','SNARE',3,4,'AND',0.3,true),    // muted — spare
+          tr('clap','CLAP',3,4,'AND',0.45),          // off-beat comping accents
+          tr('chat','CL HAT',4,4,'AND',0.25,true),   // muted — spare 16th texture if wanted
+          tr('ohat','OP HAT',5,4,'XOR',0.3,true),    // muted — spare
+          tr('tom','TOM',5,2,'AND',0.35,true),       // muted — spare
+          tr('rim','RIM',0,1,'OR',0.85),             // the clave itself — the 5-hit pattern: 0,3,6,10,12
+        ],
+        steps:16, bpm:105, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-afrobeat', name:'Afrobeat', state:{
+        /* Genuine 12/8 — 12 steps, 3 per beat, not a straight 16-grid with swing added. The
+           bell (rim) is the West African "standard pattern," the direct ancestor of clave:
+           found the same way — two clocks, OR'd, landing on exactly 0,3,5,8,10.
+           The triplet feel itself comes from three things, each on its own voice: a plain
+           beat pulse (kick, ÷3) that gives the ear something 3-grouped to lock onto; the
+           straight triplet run (shekere, ÷1 — every partial of every beat); and the classic
+           shuffle skip pattern (open hat — hit-rest-hit within each beat, the same device
+           behind a blues shuffle or jazz ride). The bell and the kick/tom cross-rhythm are
+           legitimate hemiola against that pulse, not competing with it — they only read as
+           polyrhythm once something else has clearly stated the 3-grouping first. */
+        clocks:[
+          {division:5,offset:0,lfo:false}, // bell part A — 0,5,10
+          {division:5,offset:3,lfo:false}, // bell part B — 3,8 (OR'd with the above = the bell)
+          {division:1,offset:0,lfo:false}, // identity / straight triplet run — every partial
+          {division:3,offset:0,lfo:false}, // the beat pulse — one hit per beat, the anchor
+          {division:4,offset:0,lfo:false}, // cross-rhythm — hemiola, foreign to the 3-grouping
+          {division:6,offset:3,lfo:false}, // off-center accent — spare
+          {division:3,offset:2,lfo:false}, // 3rd triplet partial — combines with ÷3 for the shuffle
+        ],
+        tracks:[
+          tr('kick','KICK',3,2,'AND',0.85),           // 0,3,6,9 — the plain beat pulse, the anchor
+          tr('snare','SNARE',0,3,'XOR',0.4),          // syncopated accents around the bell
+          tr('clap','CLAP',5,2,'AND',0.3,true),       // muted — spare off-center accent
+          tr('chat','CL HAT',2,2,'AND',0.4),          // shekere — the straight triplet run
+          tr('ohat','OP HAT',3,6,'OR',0.45),          // the shuffle: hit-rest-hit within each beat
+          tr('tom','TOM',3,4,'XOR',0.5),              // conga fills — hemiola against the anchor
+          tr('rim','RIM',0,1,'OR',0.85),              // the bell — 0,3,5,8,10
+        ],
+        steps:12, meterKey:'4-triplet', bpm:110, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-polyrhythm', name:'Pure Polyrhythm', state:{
+        clocks:[
+          {division:3,offset:0,lfo:false}, {division:5,offset:0,lfo:false}, {division:7,offset:0,lfo:false},
+          {division:9,offset:0,lfo:false}, {division:11,offset:0,lfo:false}, {division:13,offset:0,lfo:false},
+        ],
+        tracks:[
+          tr('kick','KICK',0,2,'AND',0.8),   // ÷3 AND ÷7 — rare, grounding thuds
+          tr('snare','SNARE',1,3,'XOR',0.6), // ÷5 XOR ÷9
+          tr('clap','CLAP',2,4,'OR',0.45),   // ÷7 OR ÷11
+          tr('chat','CL HAT',0,1,'XOR',0.4), // ÷3 XOR ÷5
+          tr('ohat','OP HAT',3,5,'OR',0.4),  // ÷9 OR ÷13
+          tr('tom','TOM',4,5,'XOR',0.55),    // ÷11 XOR ÷13
+          tr('rim','RIM',1,2,'OR',0.35),     // ÷5 OR ÷7
+        ],
+        steps:32, bpm:100, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+  ];
+}
+/* A simple, fast string hash — not cryptographic, just needs to change whenever the input
+   text changes, which is all this is used for. */
+function hashString(str){
+  let h=0;
+  for(let i=0;i<str.length;i++){ h=(h*31 + str.charCodeAt(i))|0; }
+  return h.toString(36);
+}
+
+function loadPersistedPatterns(){
+  try{
+    const raw = localStorage.getItem('logicRhythmSongData');
+    if(raw){
+      const d=JSON.parse(raw);
+      patterns = d.patterns||[];
+      timeline = d.timeline||[];
+      songTitle = d.songTitle||songTitle;
+      loopSong = !!d.loopSong;
+    }
+    /* Refresh the built-ins automatically whenever their CONTENT changes — a hash of
+       buildExamplePatterns()'s actual output, not a manually-maintained version number. That
+       number needed bumping by hand on every edit and was easy to forget (it got forgotten at
+       least once already), silently leaving stale presets in place. A content hash can't go
+       stale like that: any edit to a preset's clocks, tracks, tempo, or the addition of a new
+       preset changes the hash automatically, no memory required.
+       Preset IDs (preset-default, preset-house, ...) are fixed regardless of content, so this
+       drops the old copies and replaces them with the current definitions in place — any
+       timeline slot referencing one of these IDs keeps working since the ID didn't change, only
+       its content did. Anything YOU created (any pattern whose ID isn't "preset-...") is left
+       completely alone.
+       Tradeoff worth knowing: if you'd personally customized a built-in preset in place (edited
+       it and hit "Update Selected" without renaming it), that customization is overwritten back
+       to the bundled default the next time the presets change. Use "Duplicate" first if you want
+       to keep a tweaked copy permanently — a duplicate gets its own non-"preset-" ID and is
+       never touched by this refresh. */
+    const freshExamples = buildExamplePatterns();
+    const currentHash = hashString(JSON.stringify(freshExamples));
+    const storedHash = localStorage.getItem('logicRhythmPresetHash');
+    if(storedHash !== currentHash){
+      patterns = patterns.filter(p=>!String(p.id).startsWith('preset-'));
+      patterns = freshExamples.concat(patterns);
+      localStorage.setItem('logicRhythmPresetHash', currentHash);
+      persistPatterns();
+    }
+  }catch(e){
+    if(patterns.length===0) patterns = buildExamplePatterns(); // storage blocked — seed in-memory only
+  }
+}
+
+function savePatternAsNew(){
+  promptModal('Pattern name', 'Pattern '+(patterns.length+1), (name)=>{
+    const finalName = (name && name.trim()) ? name.trim() : ('Pattern '+(patterns.length+1));
+    const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000), name: finalName, state: captureRackState()};
+    patterns.push(p);
+    selectedPatternId = p.id;
+    persistPatterns();
+    renderPatternLibrary();
+  });
+}
+function updateSelectedPattern(){
+  const p = patterns.find(p=>p.id===selectedPatternId);
+  if(!p){ alertModal('Select a pattern block first.'); return; }
+  p.state = captureRackState();
+  persistPatterns();
+  renderPatternLibrary();
+}
+function duplicatePattern(id){
+  const p = patterns.find(p=>p.id===id); if(!p) return;
+  const copy = {id:'p'+Date.now()+Math.floor(Math.random()*1000), name:p.name+' copy', state:JSON.parse(JSON.stringify(p.state))};
+  patterns.push(copy);
+  selectedPatternId = copy.id;
+  persistPatterns();
+  renderPatternLibrary();
+}
+function deletePattern(id){
+  patterns = patterns.filter(p=>p.id!==id);
+  timeline = timeline.filter(t=>t.patternId!==id);
+  if(selectedPatternId===id) selectedPatternId=null;
+  persistPatterns();
+  renderPatternLibrary();
+  renderTimeline();
+}
+function loadPatternToRack(id){
+  const p = patterns.find(pp=>pp.id===id); if(!p) return;
+  selectedPatternId = id;
+  if(songMode){ songMode=false; }
+  applyPatternState(p.state, playing ? schedPtr+1 : undefined);
+  updateSongStatusUI();
+  switchTab('rack');
+}
+
+function renderPatternLibrary(){
+  const el=document.getElementById('patternLibrary'); if(!el) return;
+  el.innerHTML='';
+  if(patterns.length===0){
+    el.innerHTML='<div class="timeline-empty-hint">No patterns saved yet — set up the rack, then "Save Current Rack as Pattern".</div>';
+    return;
+  }
+  const activePatternId = (songMode && timeline[songIndex]) ? timeline[songIndex].patternId : null;
+  patterns.forEach(p=>{
+    const div=document.createElement('div');
+    div.className='pattern-block'+(p.id===selectedPatternId?' active':'')+(p.id===activePatternId?' playing':'');
+    div.draggable=true;
+    div.innerHTML=`<div class="pname">${p.name}</div><div class="pmeta">${p.state.steps} steps · ${p.state.bpm} bpm</div>`;
+    div.addEventListener('click', ()=> loadPatternToRack(p.id));
+    div.addEventListener('dblclick', ()=>{
+      promptModal('Rename pattern', p.name, (name)=>{
+        if(name && name.trim()){ p.name=name.trim(); persistPatterns(); renderPatternLibrary(); renderTimeline(); }
+      });
+    });
+    div.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', JSON.stringify({type:'new', patternId:p.id})); });
+    el.appendChild(div);
+  });
+}
+
+function renderTimeline(){
+  const el=document.getElementById('timeline'); if(!el) return;
+  el.innerHTML='';
+  if(timeline.length===0){
+    el.innerHTML='<div class="timeline-empty-hint">Drag pattern blocks here to build a song.</div>';
+    return;
+  }
+  timeline.forEach((slot,i)=>{
+    const pat=patterns.find(p=>p.id===slot.patternId);
+    const div=document.createElement('div');
+    div.className='timeline-slot'+(songMode && songIndex===i ? ' playing' : '');
+    div.draggable=true;
+    div.innerHTML=`
+      <button class="sremove">×</button>
+      <div class="sname">${i+1}. ${pat?pat.name:'(deleted)'}</div>
+      <input type="number" class="srepeat" min="1" max="64" value="${slot.repeats||1}">
+    `;
+    div.querySelector('.sremove').addEventListener('click', ()=>{ timeline.splice(i,1); persistPatterns(); renderTimeline(); });
+    div.querySelector('.srepeat').addEventListener('change', e=>{ slot.repeats=Math.max(1,+e.target.value||1); persistPatterns(); });
+    div.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', JSON.stringify({type:'move', from:i})); });
+    div.addEventListener('dragover', e=> e.preventDefault());
+    div.addEventListener('drop', e=>{
+      e.preventDefault(); e.stopPropagation();
+      let data={}; try{ data=JSON.parse(e.dataTransfer.getData('text/plain')||'{}'); }catch(err){}
+      if(data.type==='new'){ timeline.splice(i,0,{patternId:data.patternId, repeats:1}); }
+      else if(data.type==='move' && data.from!==i){ const [moved]=timeline.splice(data.from,1); timeline.splice(data.from<i?i-1:i,0,moved); }
+      persistPatterns(); renderTimeline();
+    });
+    el.appendChild(div);
+  });
+}
+function initTimelineDnD(){
+  const el=document.getElementById('timeline');
+  el.addEventListener('dragover', e=> e.preventDefault());
+  el.addEventListener('drop', e=>{
+    if(e.target!==el) return; // slot-level drops handle themselves
+    let data={}; try{ data=JSON.parse(e.dataTransfer.getData('text/plain')||'{}'); }catch(err){}
+    if(data.type==='new'){ timeline.push({patternId:data.patternId, repeats:1}); persistPatterns(); renderTimeline(); }
+  });
+}
+
+function advanceSong(){
+  songIndex++;
+  if(songIndex>=timeline.length){
+    if(loopSong && timeline.length>0){ songIndex=0; }
+    else { songMode=false; updateSongStatusUI(); return; }
+  }
+  const slot=timeline[songIndex];
+  const pat=patterns.find(p=>p.id===slot.patternId);
+  if(pat){
+    applyPatternState(pat.state, schedPtr+1);
+    songStepsRemaining = (slot.repeats||1)*steps;
+  } else {
+    songStepsRemaining = steps; // missing pattern — idle one loop then try the next slot
+  }
+  updateSongStatusUI();
+}
+function playSong(){
+  if(timeline.length===0){ alertModal('Drag at least one pattern onto the timeline first.'); return; }
+  if(playing) stopPlayback();
+  songMode=true; songIndex=0;
+  const pat=patterns.find(p=>p.id===timeline[0].patternId);
+  if(pat) applyPatternState(pat.state);
+  songStepsRemaining = (timeline[0].repeats||1)*steps;
+  startPlayback();
+  const btn=document.getElementById('playBtn'); btn.textContent='■ STOP'; btn.classList.add('on');
+  updateSongStatusUI();
+  switchTab('rack');
+}
+function stopSong(){
+  songMode=false;
+  stopPlayback();
+  const btn=document.getElementById('playBtn'); btn.textContent='▶ RUN'; btn.classList.remove('on');
+  updateSongStatusUI();
+}
+function updateSongStatusUI(){
+  const el=document.getElementById('songStatus');
+  if(el){
+    if(songMode && timeline[songIndex]){
+      const pat=patterns.find(p=>p.id===timeline[songIndex].patternId);
+      el.style.display='block';
+      el.textContent = `Song: ${songTitle} · Pattern ${songIndex+1} of ${timeline.length}${pat?(' — '+pat.name):''}`;
+    } else {
+      el.style.display='none';
+    }
+  }
+  renderPatternLibrary();
+  renderTimeline();
+}
+
+/* ================= audio ================= */
+let ctx=null, masterGain=null, noiseBuf=null;
+function ensureAudio(){
+  if(ctx) return;
+  ctx = new (window.AudioContext||window.webkitAudioContext)();
+  lfoStartTime = ctx.currentTime;
+  masterGain = ctx.createGain();
+  masterGain.gain.value = masterVolVal;
+  masterGain.connect(ctx.destination);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate*2, ctx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+}
+function noiseSrc(){ const s=ctx.createBufferSource(); s.buffer=noiseBuf; return s; }
+
+function envGain(g, level, t, decay, curve='exp'){
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(level, t);
+  if(curve==='exp') g.gain.exponentialRampToValueAtTime(0.0008, t+decay);
+  else g.gain.linearRampToValueAtTime(0.0001, t+decay);
+}
+
+function playKick(dest,t,v,opts){
+  const {startFreq=155, endFreq=42, decay=0.32} = opts||{};
+  const osc=ctx.createOscillator(); osc.type='sine';
+  const og=ctx.createGain();
+  osc.frequency.setValueAtTime(startFreq,t);
+  osc.frequency.exponentialRampToValueAtTime(endFreq,t+0.13);
+  envGain(og, 1.0*v, t, decay);
+  osc.connect(og); og.connect(dest);
+  osc.start(t); osc.stop(t+decay+0.04);
+
+  const click=noiseSrc(); const cf=ctx.createBiquadFilter(); cf.type='highpass'; cf.frequency.value=1200;
+  const cg=ctx.createGain(); envGain(cg, 0.35*v, t, 0.025);
+  click.connect(cf); cf.connect(cg); cg.connect(dest);
+  click.start(t); click.stop(t+0.03);
+}
+function playSnare(dest,t,v){
+  const n=noiseSrc(); const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1900; bp.Q.value=0.9;
+  const ng=ctx.createGain(); envGain(ng, 0.8*v, t, 0.16);
+  n.connect(bp); bp.connect(ng); ng.connect(dest);
+  n.start(t); n.stop(t+0.18);
+
+  const osc=ctx.createOscillator(); osc.type='triangle'; osc.frequency.value=190;
+  const og=ctx.createGain(); envGain(og, 0.5*v, t, 0.1);
+  osc.connect(og); og.connect(dest);
+  osc.start(t); osc.stop(t+0.12);
+}
+function playClap(dest,t,v){
+  const offsets=[0,0.012,0.024];
+  offsets.forEach((o,i)=>{
+    const n=noiseSrc(); const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1400; bp.Q.value=1.4;
+    const ng=ctx.createGain(); envGain(ng, 0.55*v, t+o, i<2?0.035:0.16);
+    n.connect(bp); bp.connect(ng); ng.connect(dest);
+    n.start(t+o); n.stop(t+o+0.18);
+  });
+}
+function playHat(dest,t,v,open){
+  const n=noiseSrc(); const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=7500;
+  const ng=ctx.createGain(); envGain(ng, (open?0.45:0.5)*v, t, open?0.28:0.045);
+  n.connect(hp); hp.connect(ng); ng.connect(dest);
+  n.start(t); n.stop(t+(open?0.3:0.06));
+}
+function playTom(dest,t,v,opts){
+  const {startFreq=220, endFreq=95, decay=0.26} = opts||{};
+  const osc=ctx.createOscillator(); osc.type='sine';
+  const og=ctx.createGain();
+  osc.frequency.setValueAtTime(startFreq,t);
+  osc.frequency.exponentialRampToValueAtTime(endFreq,t+0.22);
+  envGain(og, 0.85*v, t, decay);
+  osc.connect(og); og.connect(dest);
+  osc.start(t); osc.stop(t+decay+0.02);
+}
+function playRim(dest,t,v){
+  const n=noiseSrc(); const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=4000;
+  const ng=ctx.createGain(); envGain(ng, 0.4*v, t, 0.03);
+  n.connect(hp); hp.connect(ng); ng.connect(dest);
+  n.start(t); n.stop(t+0.04);
+
+  const osc=ctx.createOscillator(); osc.type='square'; osc.frequency.value=900;
+  const og=ctx.createGain(); envGain(og, 0.2*v, t, 0.02);
+  osc.connect(og); og.connect(dest);
+  osc.start(t); osc.stop(t+0.025);
+}
+/* The full palette of selectable sounds. A track's `id` is a stable per-slot identifier (DOM
+   element ids, MIDI-map row identity) that never changes; `voice` is which of these sounds is
+   currently assigned to that slot, and is what the new dropdown edits. High/Low Kick and Tom
+   are just the same synth engines retuned — same envelope shape, different frequency range and
+   decay, so they sit clearly apart without needing new synthesis code. */
+const VOICE_DEFS = {
+  kick:      {label:'KICK',       synth:(d,t,v)=>playKick(d,t,v)},
+  kickHi:    {label:'HIGH KICK',  synth:(d,t,v)=>playKick(d,t,v,{startFreq:260,endFreq:90,decay:0.22})},
+  kickLo:    {label:'LOW KICK',   synth:(d,t,v)=>playKick(d,t,v,{startFreq:90,endFreq:28,decay:0.42})},
+  snare:     {label:'SNARE',      synth:(d,t,v)=>playSnare(d,t,v)},
+  clap:      {label:'CLAP',       synth:(d,t,v)=>playClap(d,t,v)},
+  chatClosed:{label:'CLOSED HAT', synth:(d,t,v)=>playHat(d,t,v,false)},
+  chatOpen:  {label:'OPEN HAT',   synth:(d,t,v)=>playHat(d,t,v,true)},
+  tom:       {label:'TOM',        synth:(d,t,v)=>playTom(d,t,v)},
+  tomHi:     {label:'HIGH TOM',   synth:(d,t,v)=>playTom(d,t,v,{startFreq:340,endFreq:160,decay:0.2})},
+  tomLo:     {label:'LOW TOM',    synth:(d,t,v)=>playTom(d,t,v,{startFreq:150,endFreq:55,decay:0.34})},
+  rim:       {label:'RIM',        synth:(d,t,v)=>playRim(d,t,v)},
+};
+/* How each of the 7 fixed slots' sound mapped before voices became selectable — used to
+   backfill `voice` on old saved patterns (keyed by slot id) so they keep sounding exactly as
+   they used to, and by the preset-builder helper below. */
+const LEGACY_VOICE_MAP = {kick:'kick', snare:'snare', clap:'clap', chat:'chatClosed', ohat:'chatOpen', tom:'tom', rim:'rim'};
+function voiceOptionsHTML(selected){
+  return Object.keys(VOICE_DEFS).map(k=>`<option value="${k}" ${k===selected?'selected':''}>${VOICE_DEFS[k].label}</option>`).join('');
+}
+
+/* ================= sequencing logic ================= */
+function clockPulse(clockIdx, stepIdx){
+  const {division,offset} = effectiveClock(clockIdx);
+  const div = Math.max(1,division);
+  return (stepIdx % div) === (offset % div);
+}
+function trackOutput(track, stepIdx){
+  const a = clockPulse(track.clockA, stepIdx);
+  const b = clockPulse(track.clockB, stepIdx);
+  return {a,b,out:gateFn(track.gate,a,b)};
+}
+/* Nudge shifts WHEN a voice's already-decided pattern plays, without touching the clocks or
+   gate that decided it — "what would the raw logic have played `nudge` steps ago?" A positive
+   nudge delays the voice (its hits arrive later than the logic alone would place them); negative
+   pulls it earlier. Wrapping is modulo the current loop length, so it always lands somewhere in
+   the same bar rather than spilling into an imaginary previous/next one.
+   A/B stay showing the true, unshifted clock signals (the underlying logic is genuinely
+   unchanged) — only the OUT row, and actual playback, reflect the shift. Everything downstream
+   (swing, accent) reads the real absolute step a nudged hit lands on, so they compose correctly
+   without any special-casing. */
+function effectiveOut(tr, stepIdx){
+  const nudge = tr.nudge||0;
+  if(!nudge) return trackOutput(tr, stepIdx).out;
+  const srcIdx = ((stepIdx - nudge) % steps + steps) % steps;
+  return trackOutput(tr, srcIdx).out;
+}
+
+/* ================= scheduler ================= */
+let playing=false, timerID=null, startTime=0, stepDur=0;
+const scheduleAhead=0.12, lookaheadMs=25;
+let scheduledMarks=[]; // {step,time} for playhead drawing
+
+function stepTime(i){
+  const swingSec = (swingPct/100) * stepDur * 0.6;
+  return startTime + i*stepDur + ((i%2===1)?swingSec:0);
+}
+let schedPtr=0;
+function scheduler(){
+  while(schedPtr < schedPtr + 1000){ // guarded loop
+    const t = stepTime(schedPtr);
+    if(t > ctx.currentTime + scheduleAhead) break;
+    const stepIdx = schedPtr % steps;
+    const anySolo = tracks.some(tr=>tr.solo);
+    tracks.forEach((tr,tIdx)=>{
+      const out = effectiveOut(tr, stepIdx);
+      if(!out) return;
+      const audible = !tr.mute && (!anySolo || tr.solo);
+      if(!audible) return;
+      const trackSwingSec = (stepIdx%2===1) ? (effectiveTrackSwing(tr,tIdx)/100)*stepDur*0.6 : 0;
+      const vel = effectiveTrackVelocity(tr,tIdx);
+      const accented = tr.accent && accentPulse(stepIdx);
+      const finalVel = tr.accent ? (accented ? Math.min(1.5, vel*ACCENT_BOOST) : vel*ACCENT_DUCK) : vel;
+      const voiceDef = VOICE_DEFS[tr.voice] || VOICE_DEFS[LEGACY_VOICE_MAP[tr.id]] || VOICE_DEFS.kick;
+      voiceDef.synth(masterGain, t+trackSwingSec, tr.vol*finalVel);
+    });
+    scheduledMarks.push({step:stepIdx, time:t});
+    if(scheduledMarks.length>256) scheduledMarks.splice(0,64);
+    schedPtr++;
+    if(songMode){
+      songStepsRemaining--;
+      if(songStepsRemaining<=0) advanceSong();
+    }
+  }
+}
+/* Meter can no longer be inferred from the step count alone: 12 steps means "4 beats/bar,
+   3 steps/beat" for a 12/8 triplet grid, but ALSO "3 beats/bar, 4 steps/beat" for a 3/4 waltz
+   bar — same total, completely different rhythmic meaning. Getting this conflated is exactly
+   the class of bug that hit tempo twice already, so meter is now explicit state (meterKey),
+   not derived from steps. Grid dropdown options carry both a step count and a meter key. */
+const METER_DEFS = {
+  '4-straight': {beatsPerBar:4, stepsPerBeatVal:4}, // 16 = one bar, 32 = two bars
+  '4-triplet':  {beatsPerBar:4, stepsPerBeatVal:3}, // 12/8 — 12 = one bar, 24 = two bars
+  '3-straight': {beatsPerBar:3, stepsPerBeatVal:4}, // 3/4 waltz — 12 = one bar, 24 = two bars
+};
+const GRID_OPTIONS = [
+  {value:'12-waltz',    steps:12, meter:'3-straight', label:'12 (3/4 Waltz)'},
+  {value:'12-triplet',  steps:12, meter:'4-triplet',  label:'12 (12/8)'},
+  {value:'16-straight', steps:16, meter:'4-straight', label:'16 (4/4)'},
+  {value:'24-waltz',    steps:24, meter:'3-straight', label:'24 (3/4 Waltz ×2)'},
+  {value:'24-triplet',  steps:24, meter:'4-triplet',  label:'24 (12/8 ×2)'},
+  {value:'32-straight', steps:32, meter:'4-straight', label:'32 (4/4 ×2)'},
+];
+function gridOptionFor(stepsVal, meter){
+  return GRID_OPTIONS.find(g=>g.steps===stepsVal && g.meter===meter) || GRID_OPTIONS.find(g=>g.steps===stepsVal) || GRID_OPTIONS[2];
+}
+function stepsPerBeat(){ return METER_DEFS[meterKey].stepsPerBeatVal; }
+function stepsPerBar(){ return METER_DEFS[meterKey].stepsPerBeatVal * METER_DEFS[meterKey].beatsPerBar; }
+function startPlayback(){
+  ensureAudio();
+  ctx.resume();
+  stepDur = (60/bpm)/stepsPerBeat();
+  startTime = ctx.currentTime + 0.08;
+  schedPtr = 0;
+  scheduledMarks=[];
+  playing=true;
+  timerID = setInterval(scheduler, lookaheadMs);
+  requestAnimationFrame(drawLoop);
+}
+function stopPlayback(){
+  playing=false;
+  if(timerID) clearInterval(timerID);
+  timerID=null;
+  clearCursors();
+  document.querySelectorAll('.clock-led,.out-led').forEach(el=>el.classList.remove('lit'));
+}
+function clearCursors(){
+  document.querySelectorAll('.cell.cursor').forEach(el=>el.classList.remove('cursor'));
+}
+
+let lastDrawnStep=-1;
+function drawLoop(){
+  if(!playing) return;
+  const now = ctx.currentTime;
+  // find most recent mark at or before now
+  let mark=null;
+  for(let i=scheduledMarks.length-1;i>=0;i--){
+    if(scheduledMarks[i].time<=now){ mark=scheduledMarks[i]; break; }
+  }
+  if(mark && mark.step!==lastDrawnStep){
+    lastDrawnStep = mark.step;
+    clearCursors();
+    tracks.forEach(tr=>{
+      const {a,b} = trackOutput(tr, mark.step);
+      const out = effectiveOut(tr, mark.step);
+      const rowA = document.getElementById('traceA-'+tr.id);
+      const rowB = document.getElementById('traceB-'+tr.id);
+      const rowO = document.getElementById('traceOut-'+tr.id);
+      if(rowA && rowA.children[mark.step]) rowA.children[mark.step].classList.add('cursor');
+      if(rowB && rowB.children[mark.step]) rowB.children[mark.step].classList.add('cursor');
+      if(rowO && rowO.children[mark.step]) rowO.children[mark.step].classList.add('cursor');
+      const led = document.getElementById('outLed-'+tr.id);
+      if(led){ led.classList.toggle('lit', out); }
+    });
+    clocks.forEach((c,idx)=>{
+      const led = document.getElementById('clockLed'+idx);
+      if(led) led.classList.toggle('lit', clockPulse(idx, mark.step));
+    });
+    const accentLed=document.getElementById('accentLed');
+    if(accentLed) accentLed.classList.toggle('lit', accentPulse(mark.step));
+  }
+  requestAnimationFrame(drawLoop);
+}
+
+/* ================= rendering UI ================= */
+function renderClockBank(){
+  const el = document.getElementById('clockBank');
+  el.innerHTML='';
+  clocks.forEach((c,idx)=>{
+    const div=document.createElement('div');
+    div.className='clock-module';
+    div.style.setProperty('--clock-color', clockColor(idx));
+    div.innerHTML = `
+      <button class="clock-remove-btn" data-c="${idx}" title="Remove this clock" ${clocks.length<=MIN_CLOCKS?'disabled':''}>×</button>
+      <div class="clock-led" id="clockLed${idx}"></div>
+      <div class="clock-name">CLK ${clockLabel(idx)}</div>
+      <div class="clock-param">
+        <button class="stepbtn" data-c="${idx}" data-p="division" data-d="-1">–</button>
+        <span id="clockDiv${idx}">${c.division}</span>
+        <button class="stepbtn" data-c="${idx}" data-p="division" data-d="1">+</button>
+      </div>
+      <div class="clock-param-label">divide</div>
+      <div class="clock-param">
+        <button class="stepbtn" data-c="${idx}" data-p="offset" data-d="-1">–</button>
+        <span id="clockOff${idx}">${c.offset}</span>
+        <button class="stepbtn" data-c="${idx}" data-p="offset" data-d="1">+</button>
+      </div>
+      <div class="clock-param-label">offset</div>
+      <button class="lfo-toggle ${c.lfo?'active':''}" data-c="${idx}">∿ LFO</button>
+    `;
+    el.appendChild(div);
+  });
+  const addBtn=document.createElement('button');
+  addBtn.className='clock-add-btn';
+  addBtn.title = clocks.length>=MAX_CLOCKS ? `Clock bank is capped at ${MAX_CLOCKS}` : 'Add a clock';
+  addBtn.disabled = clocks.length>=MAX_CLOCKS;
+  addBtn.textContent='+';
+  addBtn.addEventListener('click', addClock);
+  el.appendChild(addBtn);
+
+  el.querySelectorAll('.clock-remove-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> removeClock(+btn.dataset.c));
+  });
+  el.querySelectorAll('.lfo-toggle').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx=+btn.dataset.c;
+      clocks[idx].lfo = !clocks[idx].lfo;
+      btn.classList.toggle('active', clocks[idx].lfo);
+    });
+  });
+  el.querySelectorAll('.stepbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx=+btn.dataset.c, prop=btn.dataset.p, d=+btn.dataset.d;
+      const c=clocks[idx];
+      if(prop==='division') setClockDivision(idx, c.division+d);
+      else setClockOffset(idx, c.offset+d);
+    });
+  });
+}
+
+/* Growing/shrinking the clock bank means every track's clockA/clockB and every MIDI clock
+   mapping is index-based, so both need to stay in sync with the array shrinking or growing. */
+function addClock(){
+  if(clocks.length>=MAX_CLOCKS) return;
+  clocks.push({division:4, offset:0, lfo:false});
+  midiMap.clockDiv.push(null); // unmapped by default — bind it with Learn, no hardware layout assumed
+  midiMap.clockOff.push(null);
+  rebuildCCHandlers();
+  renderClockBank();
+  renderMatrix();
+}
+function removeClock(idx){
+  if(clocks.length<=MIN_CLOCKS) return;
+  clocks.splice(idx,1);
+  midiMap.clockDiv.splice(idx,1);
+  midiMap.clockOff.splice(idx,1);
+  tracks.forEach(tr=>{
+    // anything pointing at the removed clock falls back to clock 0; anything pointing past it
+    // shifts down by one so indices stay valid after the splice
+    if(tr.clockA===idx) tr.clockA=0; else if(tr.clockA>idx) tr.clockA--;
+    if(tr.clockB===idx) tr.clockB=0; else if(tr.clockB>idx) tr.clockB--;
+  });
+  rebuildCCHandlers();
+  renderClockBank();
+  renderMatrix();
+}
+
+/* Update just one clock's live number readouts immediately (cheap), but only FLAG the step-grid
+   cells and "(÷n)" dropdown labels for a refresh rather than rebuilding them right away. MIDI
+   controllers (and fast mouse drags) can fire dozens of updates a second; rebuilding all 7
+   tracks' cells on every single one was heavy enough to stall the audio scheduler and make the
+   beat audibly stutter or drop out. A single rAF loop below coalesces any number of pending
+   updates into at most one rebuild per animation frame instead. */
+let cellsRefreshPending=false, labelsRefreshPending=false;
+function setClockDivision(idx, div){
+  if(!Number.isFinite(div)) return; // guards against malformed/NaN MIDI data
+  const c = clocks[idx];
+  c.division = Math.min(16, Math.max(1, Math.round(div)));
+  c.offset = ((c.offset % c.division)+c.division)%c.division;
+  const dEl=document.getElementById('clockDiv'+idx); if(dEl) dEl.textContent=c.division;
+  const oEl=document.getElementById('clockOff'+idx); if(oEl) oEl.textContent=c.offset;
+  labelsRefreshPending = true;
+  cellsRefreshPending = true;
+}
+function setClockOffset(idx, off){
+  if(!Number.isFinite(off)) return;
+  const c = clocks[idx];
+  c.offset = ((Math.round(off) % c.division)+c.division)%c.division;
+  const oEl=document.getElementById('clockOff'+idx); if(oEl) oEl.textContent=c.offset;
+  cellsRefreshPending = true;
+}
+/* The accent clock's own setters. Now that the grid visually marks which steps the accent
+   clock touches, these need cellsRefreshPending too (same coalesced rAF pipeline as the main
+   clocks) — otherwise a MIDI-mapped knob sweeping this would hammer the same DOM-thrashing
+   problem that used to stall the audio scheduler. */
+function setAccentDivision(div){
+  if(!Number.isFinite(div)) return;
+  accentClock.division = Math.min(16, Math.max(1, Math.round(div)));
+  accentClock.offset = ((accentClock.offset % accentClock.division)+accentClock.division)%accentClock.division;
+  const dEl=document.getElementById('accentDiv'); if(dEl) dEl.textContent=accentClock.division;
+  const oEl=document.getElementById('accentOff'); if(oEl) oEl.textContent=accentClock.offset;
+  cellsRefreshPending = true;
+}
+function setAccentOffset(off){
+  if(!Number.isFinite(off)) return;
+  accentClock.offset = ((Math.round(off) % accentClock.division)+accentClock.division)%accentClock.division;
+  const oEl=document.getElementById('accentOff'); if(oEl) oEl.textContent=accentClock.offset;
+  cellsRefreshPending = true;
+}
+function renderAccentClock(){
+  const dEl=document.getElementById('accentDiv'); if(dEl) dEl.textContent=accentClock.division;
+  const oEl=document.getElementById('accentOff'); if(oEl) oEl.textContent=accentClock.offset;
+}
+function refreshClockOptionLabels(){
+  document.querySelectorAll('.clockSelect').forEach(sel=>{
+    Array.from(sel.options).forEach((opt,i)=>{ opt.textContent = `${clockLabel(i)} (÷${clocks[i].division})`; });
+  });
+}
+function rafMaintenanceLoop(){
+  if(cellsRefreshPending){ cellsRefreshPending=false; renderAllTrackCells(); lastDrawnStep=-1; }
+  if(labelsRefreshPending){ labelsRefreshPending=false; refreshClockOptionLabels(); }
+  requestAnimationFrame(rafMaintenanceLoop);
+}
+rafMaintenanceLoop();
+
+function clockOptionsHTML(selected){
+  return clocks.map((c,i)=>`<option value="${i}" ${i===selected?'selected':''}>${clockLabel(i)} (÷${c.division})</option>`).join('');
+}
+function gateOptionsHTML(selected){
+  const labelMap={AND:'AND',OR:'OR',XOR:'XOR',NAND:'NAND',NOR:'NOR',XNOR:'XNOR',A:'A',NOTA:'¬A'};
+  return GATES.map(g=>`<option value="${g}" ${g===selected?'selected':''}>${labelMap[g]}</option>`).join('');
+}
+
+/* When a voice's velocity/swing LFO routing is off, its slider is a plain base-value control.
+   When routing is on, the SAME slider becomes a plain attenuator on the shared LFO signal for
+   that one destination: 0..100 mapped to 0..1. Full left is silence — the LFO is running but
+   contributes nothing here — full right passes it through at full depth. No inversion, no
+   center detent needed: zero already sits naturally at the slider's own left edge. */
+function velSliderHTML(tr){
+  if(tr.velocityLfo){
+    const amt = Math.max(0, tr.velocityLfoAmt===undefined?1:tr.velocityLfoAmt);
+    return `<input type="range" class="velSlider lfoAmtSlider" data-t="${tr.id}" min="0" max="100" value="${Math.round(amt*100)}" title="How much of the LFO reaches this voice's velocity. Left = none, right = full depth.">`;
+  }
+  return `<input type="range" class="velSlider" data-t="${tr.id}" min="0" max="150" value="${Math.round((tr.velocity===undefined?1:tr.velocity)*100)}" title="0–150%, 100% = normal — there's headroom to boost above normal, not just attenuate">`;
+}
+function swgSliderHTML(tr){
+  if(tr.swingLfo){
+    const amt = Math.max(0, tr.swingLfoAmt===undefined?1:tr.swingLfoAmt);
+    return `<input type="range" class="trackSwingSlider lfoAmtSlider" data-t="${tr.id}" min="0" max="100" value="${Math.round(amt*100)}" title="How much of the LFO reaches this voice's swing. Left = none, right = full depth.">`;
+  }
+  return `<input type="range" class="trackSwingSlider" data-t="${tr.id}" min="0" max="50" value="${tr.swingAmt||0}" title="Only affects this voice's hits that land on odd-numbered steps — a pattern with hits only on even steps won't audibly change">`;
+}
+/* Re-skins one track's VEL or SWG slider in place after its ∿ toggle flips, without a full
+   renderMatrix() rebuild — same "don't disrupt other open controls" reasoning as everywhere
+   else a discrete click updates just its own element. */
+function updateModSliderMode(tr, kind){
+  const el = document.querySelector(kind==='velocity' ? `.velSlider[data-t="${tr.id}"]` : `.trackSwingSlider[data-t="${tr.id}"]`);
+  if(!el) return;
+  const routed = kind==='velocity' ? tr.velocityLfo : tr.swingLfo;
+  if(routed){
+    const amt = Math.max(0, (kind==='velocity' ? tr.velocityLfoAmt : tr.swingLfoAmt) ?? 1);
+    el.min=0; el.max=100; el.value=Math.round(amt*100);
+    el.classList.add('lfoAmtSlider');
+    el.title = kind==='velocity'
+      ? "How much of the LFO reaches this voice's velocity. Left = none, right = full depth."
+      : "How much of the LFO reaches this voice's swing. Left = none, right = full depth.";
+  } else if(kind==='velocity'){
+    el.min=0; el.max=150; el.value=Math.round((tr.velocity===undefined?1:tr.velocity)*100);
+    el.classList.remove('lfoAmtSlider');
+    el.title = "0–150%, 100% = normal — there's headroom to boost above normal, not just attenuate";
+  } else {
+    el.min=0; el.max=50; el.value=tr.swingAmt||0;
+    el.classList.remove('lfoAmtSlider');
+    el.title = "Only affects this voice's hits that land on odd-numbered steps — a pattern with hits only on even steps won't audibly change";
+  }
+}
+
+const NUDGE_LIMIT = 8; // steps either direction — comfortably "a couple of beats" on any grid size
+function setTrackNudge(tr, delta){
+  tr.nudge = Math.max(-NUDGE_LIMIT, Math.min(NUDGE_LIMIT, (tr.nudge||0)+delta));
+  const el=document.getElementById('nudgeVal-'+tr.id); if(el) el.textContent=tr.nudge;
+  renderTrackCells(tr); // OUT row needs to show the shifted hits; A/B stay put since the logic didn't change
+}
+
+function renderMatrix(){
+  const el = document.getElementById('matrix');
+  el.innerHTML='';
+  tracks.forEach(tr=>{
+    const row=document.createElement('div');
+    row.className='track-row';
+    row.innerHTML=`
+      <div class="track-head">
+        <div class="out-led" id="outLed-${tr.id}"></div>
+        <select class="voiceSelect" data-t="${tr.id}" title="Which sound plays in this slot — the clocks/gate/mute/solo/accent below stay put no matter what you pick">${voiceOptionsHTML(tr.voice)}</select>
+        <button class="mute-btn ${tr.mute?'active':''}" data-t="${tr.id}" data-act="mute">M</button>
+        <button class="solo-btn ${tr.solo?'active':''}" data-t="${tr.id}" data-act="solo">S</button>
+        <button class="accent-btn ${tr.accent?'active':''}" data-t="${tr.id}" data-act="accent" title="Accent this voice on the accent clock's beat">A</button>
+      </div>
+      <div class="logic-config">
+        <select class="clockSelect" data-t="${tr.id}" data-slot="clockA">${clockOptionsHTML(tr.clockA)}</select>
+        <select class="gateSelect" data-t="${tr.id}">${gateOptionsHTML(tr.gate)}</select>
+        <select class="clockSelect" data-t="${tr.id}" data-slot="clockB">${clockOptionsHTML(tr.clockB)}</select>
+      </div>
+      <div class="mod-panel">
+        <div class="mod-row">
+          <span class="mod-label">VEL</span>
+          ${velSliderHTML(tr)}
+          <button class="lfo-toggle-sm ${tr.velocityLfo?'active':''}" data-t="${tr.id}" data-mod="velocity">∿</button>
+        </div>
+        <div class="mod-row">
+          <span class="mod-label">SWG</span>
+          ${swgSliderHTML(tr)}
+          <button class="lfo-toggle-sm ${tr.swingLfo?'active':''}" data-t="${tr.id}" data-mod="swing">∿</button>
+        </div>
+        <div class="mod-row">
+          <span class="mod-label">NDG</span>
+          <button class="stepbtn nudgeBtn" data-t="${tr.id}" data-d="-1" title="Shift this voice's hits earlier — the clock/gate logic that decides which steps fire never changes">–</button>
+          <span class="nudgeVal" id="nudgeVal-${tr.id}">${tr.nudge||0}</span>
+          <button class="stepbtn nudgeBtn" data-t="${tr.id}" data-d="1" title="Shift this voice's hits later — the clock/gate logic that decides which steps fire never changes">+</button>
+        </div>
+      </div>
+      <div class="trace-stack">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <div class="trace-label">A</div>
+          <div class="trace trace-a" id="traceA-${tr.id}" style="grid-template-columns:repeat(${steps},1fr); flex:1; --clock-color-a:${clockColor(tr.clockA)}"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <div class="trace-label">B</div>
+          <div class="trace trace-b" id="traceB-${tr.id}" style="grid-template-columns:repeat(${steps},1fr); flex:1; --clock-color-b:${clockColor(tr.clockB)}"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <div class="trace-label mono" style="color:var(--amber);">=</div>
+          <div class="trace trace-out" id="traceOut-${tr.id}" style="grid-template-columns:repeat(${steps},1fr); flex:1;"></div>
+        </div>
+      </div>
+      <div class="vol-wrap">
+        <input type="range" min="0" max="100" value="${Math.round(tr.vol*100)}" data-t="${tr.id}" class="volSlider">
+      </div>
+    `;
+    el.appendChild(row);
+    renderTrackCells(tr); // single source of truth for cell classes (lit/accent/beat markers) — no duplicated logic to drift out of sync
+  });
+
+  el.querySelectorAll('.voiceSelect').forEach(s=>s.addEventListener('change',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    tr.voice = e.target.value;
+    tr.name = VOICE_DEFS[tr.voice].label; // keeps MIDI-map labels and pattern-library previews in sync
+  }));
+  el.querySelectorAll('.clockSelect').forEach(s=>s.addEventListener('change',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    tr[e.target.dataset.slot] = +e.target.value;
+    renderTrackCells(tr);
+  }));
+  el.querySelectorAll('.gateSelect').forEach(s=>s.addEventListener('change',e=>{
+    const tr = tracks.find(t=>t.id===e.target.closest('.logic-config').querySelector('.clockSelect').dataset.t);
+    tr.gate = e.target.value;
+    renderTrackCells(tr);
+  }));
+  el.querySelectorAll('.volSlider').forEach(s=>s.addEventListener('input',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    tr.vol = (+e.target.value)/100;
+  }));
+  el.querySelectorAll('.velSlider').forEach(s=>s.addEventListener('input',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    if(tr.velocityLfo){
+      tr.velocityLfoAmt = (+e.target.value)/100;
+    } else {
+      tr.velocity = (+e.target.value)/100;
+    }
+  }));
+  el.querySelectorAll('.trackSwingSlider').forEach(s=>s.addEventListener('input',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    if(tr.swingLfo){
+      tr.swingLfoAmt = (+e.target.value)/100;
+    } else {
+      tr.swingAmt = +e.target.value;
+    }
+  }));
+  el.querySelectorAll('.lfo-toggle-sm').forEach(b=>b.addEventListener('click',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    if(e.target.dataset.mod==='velocity'){ tr.velocityLfo=!tr.velocityLfo; e.target.classList.toggle('active', tr.velocityLfo); updateModSliderMode(tr,'velocity'); }
+    else { tr.swingLfo=!tr.swingLfo; e.target.classList.toggle('active', tr.swingLfo); updateModSliderMode(tr,'swing'); }
+  }));
+  el.querySelectorAll('.nudgeBtn').forEach(b=>b.addEventListener('click',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    setTrackNudge(tr, +e.target.dataset.d);
+  }));
+  el.querySelectorAll('.mute-btn').forEach(b=>b.addEventListener('click',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    tr.mute = !tr.mute;
+    b.classList.toggle('active', tr.mute);
+  }));
+  el.querySelectorAll('.solo-btn').forEach(b=>b.addEventListener('click',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    tr.solo = !tr.solo;
+    b.classList.toggle('active', tr.solo);
+  }));
+  el.querySelectorAll('.accent-btn').forEach(b=>b.addEventListener('click',e=>{
+    const tr = tracks.find(t=>t.id===e.target.dataset.t);
+    tr.accent = !tr.accent;
+    b.classList.toggle('active', tr.accent);
+    renderTrackCells(tr); // this track's output row needs to show/hide its violet "accented" fill
+  }));
+}
+
+/* Rebuild only the A/B/output step cells for one track — no selects or buttons touched,
+   so this can run under the mouse (dragging a dropdown, mid-click) without breaking it. */
+function renderTrackCells(tr){
+  const aEl=document.getElementById('traceA-'+tr.id), bEl=document.getElementById('traceB-'+tr.id), oEl=document.getElementById('traceOut-'+tr.id);
+  if(!aEl||!bEl||!oEl) return;
+  aEl.style.setProperty('--clock-color-a', clockColor(tr.clockA));
+  bEl.style.setProperty('--clock-color-b', clockColor(tr.clockB));
+  aEl.innerHTML=''; bEl.innerHTML=''; oEl.innerHTML='';
+  const spb = stepsPerBeat(), spBar = stepsPerBar();
+  for(let s=0;s<steps;s++){
+    const {a,b} = trackOutput(tr,s);
+    const out = effectiveOut(tr,s);
+    const isAccentStep = accentPulse(s);
+    // a thin violet ring marks every step the accent clock touches, on all three rows, so it's
+    // easy to see how the accent clock lines up against a track's own A/B clocks. Only the
+    // output row fills in solid violet, and only when this voice will ACTUALLY play louder there
+    // (its Accent flag is on, the accent clock pulses, and it has a hit) — everywhere else the
+    // ring is purely informational, not a promise that anything will be boosted.
+    const accented = out && tr.accent && isAccentStep;
+    // beat/bar markers make it unambiguous how many steps make up a beat and a bar on the
+    // current grid — a bar-start border every stepsPerBar() steps, a lighter beat-start border
+    // on the beats in between. Uses border, not box-shadow, so it never conflicts with the
+    // accent ring above (a cell can show both at once).
+    const beatCls = (s % spBar === 0) ? ' bar-start' : (s % spb === 0) ? ' beat-start' : '';
+    const ca=document.createElement('div'); ca.className='cell'+(a?' lit':'')+(isAccentStep?' accent-mark':'')+beatCls;
+    const cb=document.createElement('div'); cb.className='cell'+(b?' lit':'')+(isAccentStep?' accent-mark':'')+beatCls;
+    const co=document.createElement('div'); co.className='cell'+(out?' lit':'')+(isAccentStep?' accent-mark':'')+(accented?' accented':'')+beatCls;
+    aEl.appendChild(ca); bEl.appendChild(cb); oEl.appendChild(co);
+  }
+}
+function renderAllTrackCells(){ tracks.forEach(renderTrackCells); }
+
+/* ================= shared setters =================
+   Every control funnels through one of these, whether it was moved by the mouse, by MIDI,
+   or (for clock division/offset) by the LFO. Keeps every input source in sync and means
+   none of them ever has to rebuild the row DOM to take effect. */
+function setTempo(v){
+  bpm=Math.max(60,Math.min(200,Math.round(v)));
+  document.getElementById('bpmSlider').value=bpm; document.getElementById('bpmVal').textContent=bpm;
+  if(playing) stepDur=(60/bpm)/stepsPerBeat();
+}
+function setSwing(v){
+  swingPct=Math.max(0,Math.min(50,Math.round(v)));
+  document.getElementById('swingSlider').value=swingPct; document.getElementById('swingVal').textContent=swingPct+'%';
+}
+function setMasterVol(v){
+  masterVolVal=Math.max(0,Math.min(1,v/100));
+  document.getElementById('masterVol').value=Math.round(v);
+  if(masterGain) masterGain.gain.value=masterVolVal;
+}
+function setLfoPeriod(v){
+  lfoPeriod=Math.max(8,Math.min(180,Math.round(v)));
+  document.getElementById('lfoPeriodSlider').value=lfoPeriod; document.getElementById('lfoPeriodVal').textContent=lfoPeriod+'s';
+}
+function setLfoDepth(v){
+  lfoDepth=Math.max(0,Math.min(1,v/100));
+  document.getElementById('lfoDepthSlider').value=Math.round(v); document.getElementById('lfoDepthVal').textContent=Math.round(v)+'%';
+}
+function setLfoEnabled(on){
+  lfoEnabled=!!on;
+  document.getElementById('lfoBtn').classList.toggle('on', lfoEnabled);
+  if(lfoEnabled){ ensureAudio(); if(lfoStartTime===null) lfoStartTime=ctx.currentTime; }
+}
+function togglePlay(){
+  const btn=document.getElementById('playBtn');
+  if(!playing){ startPlayback(); btn.textContent='■ STOP'; btn.classList.add('on'); }
+  else {
+    stopPlayback(); btn.textContent='▶ RUN'; btn.classList.remove('on');
+    if(songMode){ songMode=false; updateSongStatusUI(); }
+  }
+}
+function setTrackVolume(id, pct){
+  const tr=tracks.find(t=>t.id===id); if(!tr) return;
+  tr.vol=Math.max(0,Math.min(1,pct/100));
+  const el=document.querySelector('.volSlider[data-t="'+id+'"]'); if(el) el.value=Math.round(pct);
+}
+function doRandomize(){
+  const divPool=[2,3,4,5,6,8];
+  clocks.forEach(c=>{ c.division=divPool[Math.floor(Math.random()*divPool.length)]; c.offset=Math.floor(Math.random()*c.division); });
+  const gatePool=['AND','OR','XOR','AND','OR','NAND','XNOR','A'];
+  tracks.forEach(tr=>{
+    tr.clockA=Math.floor(Math.random()*clocks.length);
+    do{ tr.clockB=Math.floor(Math.random()*clocks.length);} while(tr.clockB===tr.clockA && clocks.length>1);
+    tr.gate=gatePool[Math.floor(Math.random()*gatePool.length)];
+  });
+  renderClockBank();
+  renderMatrix();
+}
+
+/* ================= Web MIDI ================= */
+let midiAccess=null;
+const ccLastVal={}; // for edge-triggered (button-like) CCs
+let learnTarget=null; // {path, idx?} currently listening for the next CC
+let ccHandlers={};    // cc number -> handler fn, rebuilt whenever midiMap changes
+
+/* Default mapping — pre-wired to an unmodified Akai MIDImix's factory CC layout, since that's
+   a common controller for this kind of rack. Every value here is still just a starting point,
+   editable from the MIDI MAP tab. null means "unassigned".
+   MIDImix factory CCs by channel strip (knob row1, row2, row3, fader):
+     col1: 16,17,18,19   col2: 20,21,22,23   col3: 24,25,26,27   col4: 28,29,30,31
+     col5: 46,47,48,49   col6: 50,51,52,53   col7: 54,55,56,57   col8: 58,59,60,61
+     master fader: 62
+   Faders map 1:1 to the 7 track volumes (col1–7) plus master (col8/master fader) — a real
+   mixer layout. Row-1/row-2 knobs of col1–6 pair up as each clock's division/offset. Row-3
+   knobs of col1–4 cover tempo/swing/LFO period/LFO depth. The MIDImix's mute/rec-arm buttons
+   send Note messages by default (not CC), which this rack doesn't read, so play/randomize/LFO
+   on-off are parked on spare knobs (col5–7 row-3 / col7 row-1) instead — everything here works
+   with a stock, unedited controller. */
+let midiMap = {
+  tempo:18, swing:22, masterVol:62, play:52, randomize:54,
+  lfoPeriod:26, lfoDepth:30, lfoEnable:48,
+  clockDiv:[16,20,24,28,46,50],
+  clockOff:[17,21,25,29,47,51],
+  trackVol:[19,23,27,31,49,53,57],
+  accentDiv:null, accentOff:null, // unmapped — every knob on a stock MIDImix is already spoken for; bind these with Learn
+};
+
+function getMapping(row){ return row.idx===undefined ? midiMap[row.path] : midiMap[row.path][row.idx]; }
+function setMapping(row, cc){
+  const val = (cc===null || cc==='' || isNaN(cc)) ? null : Math.max(0,Math.min(127,Math.round(cc)));
+  if(row.idx===undefined) midiMap[row.path]=val; else midiMap[row.path][row.idx]=val;
+  rebuildCCHandlers();
+}
+
+function midiRows(){
+  const rows=[
+    {path:'tempo', label:'Tempo'},
+    {path:'swing', label:'Swing'},
+    {path:'masterVol', label:'Master Volume'},
+    {path:'play', label:'Play / Stop'},
+    {path:'randomize', label:'Randomize'},
+    {path:'lfoPeriod', label:'LFO Period'},
+    {path:'lfoDepth', label:'LFO Depth'},
+    {path:'lfoEnable', label:'LFO On / Off'},
+    {path:'accentDiv', label:'Accent Clock — Division'},
+    {path:'accentOff', label:'Accent Clock — Offset'},
+  ];
+  clocks.forEach((c,i)=>{
+    rows.push({path:'clockDiv', idx:i, label:`Clock ${clockLabel(i)} — Division`});
+    rows.push({path:'clockOff', idx:i, label:`Clock ${clockLabel(i)} — Offset`});
+  });
+  tracks.forEach((tr,i)=>{
+    rows.push({path:'trackVol', idx:i, label:`${tr.name} — Volume`});
+  });
+  return rows;
+}
+
+function rebuildCCHandlers(){
+  ccHandlers={};
+  const set=(cc,fn)=>{ if(cc!==null && cc!==undefined) ccHandlers[cc]=fn; };
+  set(midiMap.tempo, v=> setTempo(60+(v/127)*140));
+  set(midiMap.swing, v=> setSwing((v/127)*50));
+  set(midiMap.masterVol, v=> setMasterVol((v/127)*100));
+  set(midiMap.play, v=> edgeTrigger('play',v,togglePlay));
+  set(midiMap.randomize, v=> edgeTrigger('random',v,doRandomize));
+  set(midiMap.lfoPeriod, v=> setLfoPeriod(8+(v/127)*172));
+  set(midiMap.lfoDepth, v=> setLfoDepth((v/127)*100));
+  set(midiMap.lfoEnable, v=> setLfoEnabled(v>=64));
+  midiMap.clockDiv.forEach((cc,idx)=> set(cc, v=> setClockDivision(idx, 1+(v/127)*15)));
+  midiMap.clockOff.forEach((cc,idx)=> set(cc, v=> setClockOffset(idx, (v/127)*Math.max(0,clocks[idx].division-1))));
+  midiMap.trackVol.forEach((cc,idx)=>{ const tr=tracks[idx]; if(tr) set(cc, v=> setTrackVolume(tr.id,(v/127)*100)); });
+  set(midiMap.accentDiv, v=> setAccentDivision(1+(v/127)*15));
+  set(midiMap.accentOff, v=> setAccentOffset((v/127)*Math.max(0,accentClock.division-1)));
+}
+rebuildCCHandlers();
+
+function renderMidiMap(){
+  const el=document.getElementById('midiMapTable');
+  if(!el) return;
+  el.innerHTML='';
+  const rows = midiRows();
+  const counts={};
+  rows.forEach(r=>{ const cc=getMapping(r); if(cc!==null && cc!==undefined) counts[cc]=(counts[cc]||0)+1; });
+  rows.forEach(row=>{
+    const cc = getMapping(row);
+    const div=document.createElement('div');
+    const conflict = cc!==null && cc!==undefined && counts[cc]>1;
+    const listening = learnTarget && learnTarget.path===row.path && learnTarget.idx===row.idx;
+    div.className='midi-row'+(conflict?' conflict':'');
+    div.innerHTML=`
+      <div class="pname">${row.label}</div>
+      <input type="number" class="ccnum" min="0" max="127" value="${cc===null||cc===undefined?'':cc}" placeholder="off">
+      <button class="learn-btn${listening?' listening':''}">${listening?'…':'Learn'}</button>
+      <button class="clear-btn">Clear</button>
+    `;
+    div.querySelector('.ccnum').addEventListener('change', e=>{
+      setMapping(row, e.target.value===''?null:+e.target.value);
+      renderMidiMap();
+    });
+    div.querySelector('.learn-btn').addEventListener('click', ()=>{
+      learnTarget = listening ? null : {path:row.path, idx:row.idx};
+      document.getElementById('learnStatus').textContent = learnTarget ? `Listening for “${row.label}” — move a control on your MIDI device…` : '';
+      renderMidiMap();
+    });
+    div.querySelector('.clear-btn').addEventListener('click', ()=>{
+      setMapping(row, null);
+      renderMidiMap();
+    });
+    el.appendChild(div);
+  });
+}
+
+function edgeTrigger(key,val,fn){
+  const prev = ccLastVal[key]||0;
+  if(val>=64 && prev<64) fn();
+  ccLastVal[key]=val;
+}
+function onMIDIMessage(e){
+  const [status,d1,d2] = e.data;
+  if((status & 0xF0) !== 0xB0) return; // Control Change only
+  const cc=d1, val=d2;
+  if(learnTarget){
+    setMapping(learnTarget, cc);
+    learnTarget=null;
+    document.getElementById('learnStatus').textContent='';
+    renderMidiMap();
+    return;
+  }
+  const fn = ccHandlers[cc];
+  if(fn) fn(val);
+}
+function attachMIDIInputs(){
+  if(!midiAccess) return;
+  for(const input of midiAccess.inputs.values()) input.onmidimessage = onMIDIMessage;
+  updateMIDIStatus();
+}
+function updateMIDIStatus(){
+  const el=document.getElementById('midiStatus'); if(!el) return;
+  if(!midiAccess){ el.textContent='not connected'; return; }
+  const names=Array.from(midiAccess.inputs.values()).map(i=>i.name);
+  el.textContent = names.length? names.join(', ') : 'no inputs found';
+}
+/* ================= theme ================= */
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn=document.getElementById('themeToggleBtn');
+  if(btn) btn.textContent = theme==='light' ? '☾ Dark' : '☀ Light';
+  try{ localStorage.setItem('logicRhythmTheme', theme); }catch(e){}
+}
+document.getElementById('themeToggleBtn').addEventListener('click', ()=>{
+  const current = document.documentElement.getAttribute('data-theme')||'dark';
+  applyTheme(current==='light' ? 'dark' : 'light');
+});
+(function initTheme(){
+  let saved='dark';
+  try{ saved = localStorage.getItem('logicRhythmTheme')||'dark'; }catch(e){}
+  applyTheme(saved);
+})();
+
+document.getElementById('midiBtn').addEventListener('click', e=>{
+  if(!navigator.requestMIDIAccess){ document.getElementById('midiStatus').textContent='Web MIDI unsupported in this browser'; return; }
+  navigator.requestMIDIAccess().then(access=>{
+    midiAccess=access;
+    e.target.classList.add('on');
+    attachMIDIInputs();
+    midiAccess.onstatechange = attachMIDIInputs;
+  }).catch(err=>{
+    const el=document.getElementById('midiStatus');
+    /* A rejection here almost always means the PAGE itself was never allowed to ask — most
+       commonly because it's running inside an embedded preview frame that doesn't delegate
+       the "midi" permission, rather than the person having clicked "deny" on a real prompt. */
+    if(err && err.name==='SecurityError'){
+      el.textContent='blocked — open this file directly in a browser tab, not an embedded preview';
+    } else {
+      el.textContent='access denied'+(err && err.message ? (': '+err.message) : '');
+    }
+  });
+});
+
+/* ================= tabs ================= */
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+  document.getElementById('rackView').style.display = tab==='rack' ? '' : 'none';
+  document.getElementById('midiView').style.display = tab==='midi' ? '' : 'none';
+  document.getElementById('patternsView').style.display = tab==='patterns' ? '' : 'none';
+  if(tab==='midi') renderMidiMap();
+  if(tab==='patterns'){ renderPatternLibrary(); renderTimeline(); }
+}
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+});
+
+/* ================= patterns tab controls ================= */
+document.getElementById('savePatternBtn').addEventListener('click', savePatternAsNew);
+document.getElementById('updatePatternBtn').addEventListener('click', updateSelectedPattern);
+document.getElementById('dupPatternBtn').addEventListener('click', ()=>{
+  if(selectedPatternId) duplicatePattern(selectedPatternId); else alertModal('Select a pattern block first.');
+});
+document.getElementById('delPatternBtn').addEventListener('click', ()=>{
+  if(!selectedPatternId){ alertModal('Select a pattern block first.'); return; }
+  confirmModal('Delete this pattern? It will also be removed from the timeline.', ()=> deletePattern(selectedPatternId));
+});
+document.getElementById('songTitleInput').addEventListener('input', e=>{
+  songTitle=e.target.value||'Untitled Song'; persistPatterns(); updateSongStatusUI();
+});
+document.getElementById('loopSongChk').addEventListener('change', e=>{ loopSong=e.target.checked; persistPatterns(); });
+document.getElementById('playSongBtn').addEventListener('click', playSong);
+document.getElementById('stopSongBtn').addEventListener('click', stopSong);
+
+/* ================= transport controls ================= */
+document.getElementById('playBtn').addEventListener('click', togglePlay);
+document.getElementById('bpmSlider').addEventListener('input', e=> setTempo(+e.target.value));
+/* A clock's division means a different fraction of a beat depending on the STEPS-PER-BEAT of
+   the current meter — "division 3" is once per beat on a 3-steps/beat grid (12/8, or 24-step
+   double bar) but noticeably faster on a 4-steps/beat grid (4/4 straight OR the 3/4 waltz —
+   both use 4 steps/beat, just a different number of beats per bar). Crossing between different
+   steps-per-beat values with the same clock numbers changes a pattern's felt density/tempo even
+   though the transport's actual tempo math is untouched. Rescaling every clock (and each
+   track's nudge) by the ratio between the two values keeps a pattern's musical meaning roughly
+   intact instead of it suddenly speeding up or slowing down. Switching between meters that
+   SHARE a steps-per-beat value (straight 4/4 ↔ waltz, both 4) needs no rescaling at all — only
+   beats-per-bar changed, which doesn't affect what a division means in beat-relative terms.
+   This is imprecise for divisions that don't relate cleanly to the new value (a division of 5,
+   the kind used for cross-rhythms, has no exact equivalent when rescaled by 4/3 or 3/4) — those
+   round to the nearest whole division and drift slightly. There's no way around that; 5 doesn't
+   evenly relate to either 3 or 4. Clean anchor divisions like 3↔4 rescale exactly. */
+function rescaleForGridFamily(ratio){
+  clocks.forEach(c=>{
+    const newDiv = Math.max(1, Math.min(16, Math.round(c.division*ratio)));
+    c.offset = ((Math.round(c.offset*ratio) % newDiv)+newDiv)%newDiv;
+    c.division = newDiv;
+  });
+  const newAccDiv = Math.max(1, Math.min(16, Math.round(accentClock.division*ratio)));
+  accentClock.offset = ((Math.round(accentClock.offset*ratio) % newAccDiv)+newAccDiv)%newAccDiv;
+  accentClock.division = newAccDiv;
+  tracks.forEach(tr=>{
+    tr.nudge = Math.max(-NUDGE_LIMIT, Math.min(NUDGE_LIMIT, Math.round((tr.nudge||0)*ratio)));
+  });
+}
+document.getElementById('stepsSelect').addEventListener('change', e=>{
+  const opt = GRID_OPTIONS.find(g=>g.value===e.target.value);
+  if(!opt) return;
+  const newSteps=opt.steps, newMeter=opt.meter;
+  const oldSpb = stepsPerBeat(), newSpb = METER_DEFS[newMeter].stepsPerBeatVal;
+  if(oldSpb !== newSpb) rescaleForGridFamily(newSpb/oldSpb);
+  if(playing && ctx){
+    // re-anchor the transport so the next step lands at the same real time it already would
+    // have, even though stepDur is about to change when steps-per-beat differs
+    const oldT = stepTime(schedPtr);
+    steps=newSteps; meterKey=newMeter;
+    stepDur=(60/bpm)/stepsPerBeat();
+    startTime = oldT - schedPtr*stepDur;
+  } else {
+    steps=newSteps; meterKey=newMeter;
+  }
+  renderClockBank();
+  renderAccentClock();
+  renderMatrix();
+});
+document.getElementById('swingSlider').addEventListener('input', e=> setSwing(+e.target.value));
+document.getElementById('masterVol').addEventListener('input', e=> setMasterVol(+e.target.value));
+document.getElementById('lfoBtn').addEventListener('click', ()=> setLfoEnabled(!lfoEnabled));
+document.getElementById('lfoPeriodSlider').addEventListener('input', e=> setLfoPeriod(+e.target.value));
+document.getElementById('lfoDepthSlider').addEventListener('input', e=> setLfoDepth(+e.target.value));
+document.getElementById('lfoWaveSelect').addEventListener('change', e=>{ lfoWave=e.target.value; renderLfoScopePath(); });
+
+/* ---- LFO waveform scope: a static path showing the current wave's shape over one cycle,
+   plus a dot that runs along it in real time so you can see exactly where the LFO is right
+   now. Random doesn't have a continuous shape (it holds a value per cycle), so its "shape" is
+   drawn as a staircase of held segments instead of a smooth curve. */
+function lfoScopePoint(frac, type){
+  if(type==='random'){
+    const stepIdx = Math.floor(frac*8);
+    return hashToUnit(stepIdx, 999)*2-1;
+  }
+  return waveShape(frac*2*Math.PI, type);
+}
+function renderLfoScopePath(){
+  const path=document.getElementById('lfoWavePath'); if(!path) return;
+  const w=160,h=32,mid=h/2,amp=h/2-4;
+  let d='';
+  if(lfoWave==='random'){
+    const segs=8;
+    for(let i=0;i<segs;i++){
+      const x0=(i/segs)*w, x1=((i+1)/segs)*w;
+      const v = lfoScopePoint(i/segs, 'random');
+      const y = mid - v*amp;
+      d += (i===0? `M${x0},${y} ` : `L${x0},${y} `) + `L${x1},${y} `;
+    }
+  } else {
+    const samples=48;
+    for(let i=0;i<=samples;i++){
+      const frac=i/samples;
+      const y = mid - lfoScopePoint(frac, lfoWave)*amp;
+      d += (i===0? `M${(frac*w).toFixed(1)},${y.toFixed(1)} ` : `L${(frac*w).toFixed(1)},${y.toFixed(1)} `);
+    }
+  }
+  path.setAttribute('d', d);
+}
+function tickLfoScope(){
+  const dot=document.getElementById('lfoPhaseDot');
+  if(dot){
+    if(lfoEnabled && ctx && lfoStartTime!==null){
+      const elapsed = ctx.currentTime - lfoStartTime;
+      const frac = ((elapsed/lfoPeriod)%1+1)%1;
+      const w=160,h=32,mid=h/2,amp=h/2-4;
+      const v = lfoScopePoint(frac, lfoWave);
+      dot.setAttribute('cx', (frac*w).toFixed(1));
+      dot.setAttribute('cy', (mid - v*amp).toFixed(1));
+      dot.style.opacity='1';
+    } else {
+      dot.style.opacity='0.15';
+    }
+  }
+  requestAnimationFrame(tickLfoScope);
+}
+renderLfoScopePath();
+tickLfoScope();
+
+/* Refresh clock numbers + every track's step-grid cells while an LFO-modulated clock drifts.
+   This ONLY touches text content and the cell grids (via renderAllTrackCells) — it never
+   touches a <select> or <button>, so it can run continuously without ever stealing an open
+   dropdown or an in-progress click out from under the mouse. */
+function lfoTick(){
+  if(lfoEnabled && ctx && clocks.some(c=>c.lfo)){
+    clocks.forEach((c,idx)=>{
+      const eff = effectiveClock(idx);
+      const dEl=document.getElementById('clockDiv'+idx), oEl=document.getElementById('clockOff'+idx);
+      if(dEl) dEl.textContent = eff.division;
+      if(oEl) oEl.textContent = eff.offset;
+    });
+    renderAllTrackCells();
+    lastDrawnStep = -1; // force cursor + LED re-sync after cell refresh
+  }
+  setTimeout(lfoTick, 1200);
+}
+lfoTick();
+
+document.getElementById('randomBtn').addEventListener('click', doRandomize);
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  clocks=[{division:1,offset:0,lfo:false},{division:2,offset:0,lfo:false},{division:3,offset:0,lfo:false},{division:4,offset:0,lfo:false},{division:5,offset:0,lfo:false},{division:8,offset:4,lfo:false}];
+  accentClock={division:16, offset:8};
+  tracks=[
+    {id:'kick', name:'KICK', voice:'kick', clockA:3, clockB:0, gate:'AND', vol:0.9, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+    {id:'snare', name:'SNARE', voice:'snare', clockA:5, clockB:0, gate:'AND', vol:0.8, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+    {id:'clap', name:'CLAP', voice:'clap', clockA:5, clockB:2, gate:'XOR', vol:0.6, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+    {id:'chat', name:'CLOSED HAT', voice:'chatClosed', clockA:1, clockB:0, gate:'AND', vol:0.5, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+    {id:'ohat', name:'OPEN HAT', voice:'chatOpen', clockA:2, clockB:1, gate:'AND', vol:0.45, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+    {id:'tom', name:'TOM', voice:'tom', clockA:4, clockB:3, gate:'XOR', vol:0.65, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+    {id:'rim', name:'RIM', voice:'rim', clockA:4, clockB:2, gate:'AND', vol:0.5, mute:false, solo:false, velocity:1, velocityLfo:false, velocityLfoAmt:0, swingAmt:0, swingLfo:false, swingLfoAmt:0, accent:false, nudge:0},
+  ];
+  renderClockBank();
+  renderMatrix();
+  renderAccentClock();
+});
+
+/* ================= init ================= */
+renderClockBank();
+renderMatrix();
+renderAccentClock();
+document.querySelectorAll('#accentModule .stepbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const d=+btn.dataset.d;
+    if(btn.dataset.accent==='division') setAccentDivision(accentClock.division+d);
+    else setAccentOffset(accentClock.offset+d);
+  });
+});
+loadPersistedPatterns();
+document.getElementById('songTitleInput').value = songTitle;
+document.getElementById('loopSongChk').checked = loopSong;
+renderPatternLibrary();
+renderTimeline();
+initTimelineDnD();
+updateSongStatusUI();
+</script>
+</body>
+</html>
