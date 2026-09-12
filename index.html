@@ -116,6 +116,20 @@ button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
 .accent-module .clock-led{margin:0;}
 .accent-module .clock-name{color:var(--violet); font-weight:700;}
 .accent-hint{font-size:10px; color:var(--label-dim); line-height:1.4;}
+/* ---------- Samples tab — one row per slot, same visual convention as the MIDI Map tab ---------- */
+.sample-row{
+  background:var(--panel); border:1px solid var(--line-dim); border-radius:5px;
+  display:grid; grid-template-columns:1fr 90px 70px 70px 70px; align-items:center; gap:10px;
+  padding:8px 12px;
+}
+.sample-name-input{
+  background:var(--panel2); border:1px solid var(--line); color:var(--label); border-radius:3px;
+  padding:6px 8px; font-family:'Space Mono',monospace; font-size:11.5px;
+}
+.sample-file{font-size:10.5px; color:var(--label-dim); text-align:center;}
+.sample-loaded{color:var(--cyan);}
+.sample-btn{font-size:10px; padding:6px 8px;}
+.samples-add-row{margin-top:10px; display:flex; justify-content:flex-start;}
 .clock-module{
   background:var(--panel); border:1px solid var(--line-dim); border-radius:5px;
   padding:10px 8px; text-align:center; position:relative;
@@ -255,6 +269,14 @@ button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
   display:grid; grid-template-columns:172px 176px 118px 1fr 70px; align-items:center; gap:10px;
   padding:8px 12px;
 }
+/* ---------- Simplified mode: hides LFO, Accent, and per-track velocity/swing/nudge, leaving
+   just clocks, gates, mute/solo, and volume — the core logic-gate mechanic with none of the
+   modulation layered on top. Toggled like light/dark mode; a matching column-count change on
+   .track-row is needed since the mod-panel column would otherwise leave an empty gap. ---------- */
+body.simplified-mode .adv-only,
+body.simplified-mode .accent-btn,
+body.simplified-mode .mod-panel{display:none;}
+body.simplified-mode .track-row{grid-template-columns:172px 176px 1fr 70px;}
 .track-head{display:flex; align-items:center; gap:7px; min-width:0;}
 .out-led{width:9px; height:9px; border-radius:50%; background:var(--amber); opacity:.15; transition:opacity .05s, box-shadow .05s; flex:0 0 auto;}
 .out-led.lit{opacity:1; box-shadow:0 0 7px 1px var(--amber);}
@@ -333,16 +355,16 @@ button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
         <option value="24-triplet">24 (12/8 ×2)</option>
         <option value="32-straight">32 (4/4 ×2)</option>
       </select></div></div>
-      <div class="knob-group"><label>Swing</label><div class="row"><input type="range" id="swingSlider" min="0" max="50" value="0"><span id="swingVal">0%</span></div></div>
+      <div class="knob-group adv-only"><label>Swing</label><div class="row"><input type="range" id="swingSlider" min="0" max="50" value="0"><span id="swingVal">0%</span></div></div>
       <div class="knob-group"><label>Master</label><div class="row"><input type="range" id="masterVol" min="0" max="100" value="80"></div></div>
-      <button id="lfoBtn" class="lfo-btn">∿ LFO</button>
-      <div class="knob-group"><label>Lfo Period</label><div class="row"><input type="range" id="lfoPeriodSlider" min="8" max="180" value="45"><span id="lfoPeriodVal">45s</span></div></div>
-      <div class="knob-group"><label>Lfo Depth</label><div class="row"><input type="range" id="lfoDepthSlider" min="0" max="100" value="40"><span id="lfoDepthVal">40%</span></div></div>
-      <div class="knob-group"><label>Lfo Wave</label><div class="row"><select id="lfoWaveSelect">
+      <button id="lfoBtn" class="lfo-btn adv-only">∿ LFO</button>
+      <div class="knob-group adv-only"><label>Lfo Period</label><div class="row"><input type="range" id="lfoPeriodSlider" min="8" max="180" value="45"><span id="lfoPeriodVal">45s</span></div></div>
+      <div class="knob-group adv-only"><label>Lfo Depth</label><div class="row"><input type="range" id="lfoDepthSlider" min="0" max="100" value="40"><span id="lfoDepthVal">40%</span></div></div>
+      <div class="knob-group adv-only"><label>Lfo Wave</label><div class="row"><select id="lfoWaveSelect">
         <option value="sine">Sine</option><option value="triangle">Triangle</option>
         <option value="square">Square</option><option value="random">Random</option>
       </select></div></div>
-      <div class="lfo-scope" title="LFO waveform + live phase">
+      <div class="lfo-scope adv-only" title="LFO waveform + live phase">
         <svg id="lfoWaveSvg" viewBox="0 0 160 32" width="160" height="32">
           <rect x="0" y="0" width="160" height="32" rx="4" fill="var(--panel2)" stroke="var(--line-dim)"/>
           <path id="lfoWavePath" d="" fill="none" stroke="var(--cyan)" stroke-width="1.5"/>
@@ -354,6 +376,7 @@ button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
       <button id="midiBtn" class="lfo-btn">♪ MIDI</button>
       <span id="midiStatus" class="mono" style="font-size:9.5px; color:var(--label-dim); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">not connected</span>
       <button id="themeToggleBtn" class="ghost">☀ Light</button>
+      <button id="simpleModeBtn" class="ghost" title="Hide LFO, Accent, and per-track velocity/swing/nudge — just clocks, gates, mute/solo, and volume">Simplify</button>
     </div>
   </div>
 
@@ -361,13 +384,14 @@ button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
     <button class="tab-btn active" data-tab="rack">RACK</button>
     <button class="tab-btn" data-tab="midi">MIDI MAP</button>
     <button class="tab-btn" data-tab="patterns">PATTERNS</button>
+    <button class="tab-btn" data-tab="samples">SAMPLES</button>
   </div>
 
   <div id="rackView">
   <div id="songStatus" class="song-status" style="display:none;"></div>
   <div class="clock-bank" id="clockBank"></div>
 
-  <div class="accent-row">
+  <div class="accent-row adv-only">
     <div class="accent-module" id="accentModule" style="--clock-color:var(--violet);">
       <div class="clock-led" id="accentLed"></div>
       <div class="clock-name">ACCENT</div>
@@ -451,6 +475,20 @@ button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
       <button id="stopSongBtn" class="ghost">■ Stop Song</button>
     </div>
     <div class="timeline" id="timeline"></div>
+  </div>
+
+  <div id="samplesView" style="display:none;">
+    <div class="legend" style="margin-top:0;">
+      <b>Samples —</b> upload your own WAV files here. A slot only shows up in a track's voice dropdown (back on the Rack
+      tab) once it actually has audio in it — an empty slot is just something you're setting up. Rename a slot any time;
+      the name updates everywhere it's already selected. Stored locally in this browser (audio in IndexedDB, names in
+      local storage) — a sample uploaded here won't travel with a shared or downloaded copy of this file elsewhere unless
+      uploaded there too.
+    </div>
+    <div class="matrix" id="samplesGrid"></div>
+    <div class="samples-add-row">
+      <button id="addSampleSlotBtn" class="ghost">+ Add Slot</button>
+    </div>
   </div>
 </div>
 
@@ -1222,8 +1260,215 @@ const VOICE_DEFS = {
    backfill `voice` on old saved patterns (keyed by slot id) so they keep sounding exactly as
    they used to, and by the preset-builder helper below. */
 const LEGACY_VOICE_MAP = {kick:'kick', snare:'snare', clap:'clap', chat:'chatClosed', ohat:'chatOpen', tom:'tom', rim:'rim'};
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function voiceOptionsHTML(selected){
-  return Object.keys(VOICE_DEFS).map(k=>`<option value="${k}" ${k===selected?'selected':''}>${VOICE_DEFS[k].label}</option>`).join('');
+  let html = Object.keys(VOICE_DEFS).map(k=>`<option value="${k}" ${k===selected?'selected':''}>${VOICE_DEFS[k].label}</option>`).join('');
+  const uploaded = sampleSlots.filter(s=>customBuffers[s.id]);
+  if(uploaded.length){
+    html += '<optgroup label="Custom">' + uploaded.map(s=>
+      `<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(s.name)}</option>`
+    ).join('') + '</optgroup>';
+  }
+  return html;
+}
+/* Looks up a voice by key wherever it might live — the built-in palette, or a sample slot.
+   Everything that plays a voice (the scheduler, the dropdown sync) goes through this one
+   function rather than reading VOICE_DEFS directly, since a voice is no longer guaranteed to
+   be there — it might be a sample slot instead. */
+function resolveVoice(voiceKey){
+  if(VOICE_DEFS[voiceKey]) return VOICE_DEFS[voiceKey];
+  const slot = sampleSlots.find(s=>s.id===voiceKey);
+  if(slot && customBuffers[slot.id]) return {label:slot.name, synth:playCustomSample(slot.id)};
+  return null;
+}
+
+/* ================= custom sample slots =================
+   Sample slots are NOT entries in VOICE_DEFS — they're a separate, growable list (start with 4,
+   add as many more as you like) so a slot can exist, be renamed, and be uploaded to, entirely
+   independent of the built-in voice palette. A slot only appears in the voice dropdowns once it
+   actually has audio in it (see voiceOptionsHTML above) — an empty slot is just something being
+   set up on the Samples tab, not yet a usable sound.
+   Persistence: slot names/order live in localStorage (tiny), the actual audio lives in
+   IndexedDB (localStorage is far too small for that). Both are per-browser — a sample uploaded
+   here won't travel with a shared copy of this file unless re-uploaded there too. */
+let sampleSlots = [
+  {id:'sample1', name:'Custom 1'},
+  {id:'sample2', name:'Custom 2'},
+  {id:'sample3', name:'Custom 3'},
+  {id:'sample4', name:'Custom 4'},
+];
+const customBuffers = {}; // slot id -> decoded AudioBuffer, present only once something's uploaded
+function playCustomSample(slotId){
+  return (dest,t,v)=>{
+    const buf = customBuffers[slotId];
+    if(!buf || !ctx) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(Math.min(1.5, v), t);
+    src.connect(g); g.connect(dest);
+    src.start(t);
+  };
+}
+
+const SAMPLES_DB_NAME='logicRhythmSamples', SAMPLES_STORE='wavs';
+function openSamplesDB(){
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB){ reject(new Error('IndexedDB unavailable')); return; }
+    const req = indexedDB.open(SAMPLES_DB_NAME, 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore(SAMPLES_STORE); };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function saveSampleBlob(slotId, file){
+  try{
+    const db = await openSamplesDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(SAMPLES_STORE,'readwrite');
+      tx.objectStore(SAMPLES_STORE).put(file, slotId);
+      tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){ console.warn('Could not save sample locally', e); }
+}
+async function loadSampleBlob(slotId){
+  try{
+    const db = await openSamplesDB();
+    return await new Promise((resolve,reject)=>{
+      const tx=db.transaction(SAMPLES_STORE,'readonly');
+      const req=tx.objectStore(SAMPLES_STORE).get(slotId);
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error);
+    });
+  }catch(e){ return null; }
+}
+async function deleteSampleBlob(slotId){
+  try{
+    const db = await openSamplesDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(SAMPLES_STORE,'readwrite');
+      tx.objectStore(SAMPLES_STORE).delete(slotId);
+      tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){}
+}
+function persistSampleSlots(){
+  try{ localStorage.setItem('logicRhythmSampleSlots', JSON.stringify(sampleSlots)); }catch(e){}
+}
+function loadPersistedSampleSlots(){
+  try{
+    const raw = localStorage.getItem('logicRhythmSampleSlots');
+    if(raw) sampleSlots = JSON.parse(raw);
+  }catch(e){}
+}
+/* Any track currently using a slot that just lost its audio (cleared or removed entirely)
+   falls back to Kick rather than silently pointing at a voice that no longer resolves to
+   anything — same "never leave a dangling reference" principle as elsewhere in this app. */
+function reassignTracksOffVoice(voiceKey){
+  tracks.forEach(tr=>{
+    if(tr.voice===voiceKey){ tr.voice='kick'; tr.name=VOICE_DEFS.kick.label; }
+  });
+}
+async function handleSampleUpload(slotId, file){
+  if(!file) return;
+  ensureAudio();
+  try{
+    const arrayBuf = await file.arrayBuffer();
+    const audioBuf = await ctx.decodeAudioData(arrayBuf);
+    customBuffers[slotId] = audioBuf;
+    saveSampleBlob(slotId, file); // fire-and-forget; playback already works even if this fails
+    renderSamplesTab();
+    renderMatrix(); // this slot may now be selectable — refresh every voice dropdown
+  }catch(e){
+    alertModal("Could not decode that file as audio — make sure it's a valid WAV file.");
+  }
+}
+function clearSample(slotId){
+  delete customBuffers[slotId];
+  deleteSampleBlob(slotId);
+  reassignTracksOffVoice(slotId);
+  renderSamplesTab();
+  renderMatrix();
+}
+function addSampleSlot(){
+  const id = 'sample_'+Date.now()+Math.floor(Math.random()*1000);
+  sampleSlots.push({id, name:'Custom '+(sampleSlots.length+1)});
+  persistSampleSlots();
+  renderSamplesTab();
+}
+function removeSampleSlot(slotId){
+  sampleSlots = sampleSlots.filter(s=>s.id!==slotId);
+  delete customBuffers[slotId];
+  deleteSampleBlob(slotId);
+  reassignTracksOffVoice(slotId);
+  persistSampleSlots();
+  renderSamplesTab();
+  renderMatrix();
+}
+function renameSampleSlot(slotId, newName){
+  const slot = sampleSlots.find(s=>s.id===slotId);
+  if(!slot) return;
+  slot.name = (newName||'').trim() || slot.name;
+  persistSampleSlots();
+  // update any already-rendered <option> text for this slot without rebuilding the selects
+  document.querySelectorAll('.voiceSelect').forEach(sel=>{
+    const opt = Array.from(sel.options).find(o=>o.value===slotId);
+    if(opt) opt.textContent = slot.name;
+  });
+  // keep any track currently using this voice in sync, same convention as the voice dropdown's own change handler
+  tracks.forEach(tr=>{ if(tr.voice===slotId) tr.name = slot.name; });
+}
+async function loadPersistedSamples(){
+  for(const slot of sampleSlots){
+    const file = await loadSampleBlob(slot.id);
+    if(!file) continue;
+    try{
+      ensureAudio();
+      const arrayBuf = await file.arrayBuffer();
+      const audioBuf = await ctx.decodeAudioData(arrayBuf);
+      customBuffers[slot.id] = audioBuf;
+    }catch(e){ console.warn('Failed to restore saved sample', slot.id, e); }
+  }
+  renderSamplesTab();
+}
+function renderSamplesTab(){
+  const el=document.getElementById('samplesGrid');
+  if(!el) return;
+  el.innerHTML='';
+  sampleSlots.forEach(slot=>{
+    const hasFile = !!customBuffers[slot.id];
+    const div=document.createElement('div');
+    div.className='sample-row';
+    div.innerHTML=`
+      <input type="text" class="sample-name-input" value="${escapeHtml(slot.name)}" data-slot="${slot.id}">
+      <div class="sample-file">${hasFile ? '<span class="sample-loaded">● loaded</span>' : 'empty'}</div>
+      <input type="file" accept=".wav,audio/wav" id="sampleInput-${slot.id}" style="display:none;">
+      <button class="ghost sample-btn" data-slot="${slot.id}" data-act="upload">Upload</button>
+      <button class="ghost sample-btn" data-slot="${slot.id}" data-act="clear">Clear</button>
+      <button class="ghost sample-btn" data-slot="${slot.id}" data-act="remove">Remove</button>
+    `;
+    el.appendChild(div);
+  });
+  el.querySelectorAll('.sample-name-input').forEach(inp=>{
+    inp.addEventListener('change', e=> renameSampleSlot(inp.dataset.slot, e.target.value));
+  });
+  el.querySelectorAll('.sample-btn[data-act="upload"]').forEach(btn=>{
+    btn.addEventListener('click', ()=> document.getElementById('sampleInput-'+btn.dataset.slot).click());
+  });
+  el.querySelectorAll('input[type=file]').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const slotId=inp.id.replace('sampleInput-','');
+      handleSampleUpload(slotId, e.target.files[0]);
+    });
+  });
+  el.querySelectorAll('.sample-btn[data-act="clear"]').forEach(btn=>{
+    btn.addEventListener('click', ()=> clearSample(btn.dataset.slot));
+  });
+  el.querySelectorAll('.sample-btn[data-act="remove"]').forEach(btn=>{
+    btn.addEventListener('click', ()=> removeSampleSlot(btn.dataset.slot));
+  });
 }
 
 /* ================= sequencing logic ================= */
@@ -1278,7 +1523,7 @@ function scheduler(){
       const vel = effectiveTrackVelocity(tr,tIdx);
       const accented = tr.accent && accentPulse(stepIdx);
       const finalVel = tr.accent ? (accented ? Math.min(1.5, vel*ACCENT_BOOST) : vel*ACCENT_DUCK) : vel;
-      const voiceDef = VOICE_DEFS[tr.voice] || VOICE_DEFS[LEGACY_VOICE_MAP[tr.id]] || VOICE_DEFS.kick;
+      const voiceDef = resolveVoice(tr.voice) || resolveVoice(LEGACY_VOICE_MAP[tr.id]) || VOICE_DEFS.kick;
       voiceDef.synth(masterGain, t+trackSwingSec, tr.vol*finalVel);
     });
     scheduledMarks.push({step:stepIdx, time:t});
@@ -1631,7 +1876,8 @@ function renderMatrix(){
   el.querySelectorAll('.voiceSelect').forEach(s=>s.addEventListener('change',e=>{
     const tr = tracks.find(t=>t.id===e.target.dataset.t);
     tr.voice = e.target.value;
-    tr.name = VOICE_DEFS[tr.voice].label; // keeps MIDI-map labels and pattern-library previews in sync
+    const vd = resolveVoice(tr.voice);
+    tr.name = vd ? vd.label : tr.name; // keeps MIDI-map labels and pattern-library previews in sync
   }));
   el.querySelectorAll('.clockSelect').forEach(s=>s.addEventListener('change',e=>{
     const tr = tracks.find(t=>t.id===e.target.dataset.t);
@@ -1939,6 +2185,22 @@ document.getElementById('themeToggleBtn').addEventListener('click', ()=>{
   applyTheme(saved);
 })();
 
+/* ================= simplified mode ================= */
+function applySimpleMode(on){
+  document.body.classList.toggle('simplified-mode', on);
+  const btn=document.getElementById('simpleModeBtn');
+  if(btn) btn.textContent = on ? 'Show All' : 'Simplify';
+  try{ localStorage.setItem('logicRhythmSimpleMode', on ? '1' : '0'); }catch(e){}
+}
+document.getElementById('simpleModeBtn').addEventListener('click', ()=>{
+  applySimpleMode(!document.body.classList.contains('simplified-mode'));
+});
+(function initSimpleMode(){
+  let saved=false;
+  try{ saved = localStorage.getItem('logicRhythmSimpleMode')==='1'; }catch(e){}
+  applySimpleMode(saved);
+})();
+
 document.getElementById('midiBtn').addEventListener('click', e=>{
   if(!navigator.requestMIDIAccess){ document.getElementById('midiStatus').textContent='Web MIDI unsupported in this browser'; return; }
   navigator.requestMIDIAccess().then(access=>{
@@ -1965,8 +2227,10 @@ function switchTab(tab){
   document.getElementById('rackView').style.display = tab==='rack' ? '' : 'none';
   document.getElementById('midiView').style.display = tab==='midi' ? '' : 'none';
   document.getElementById('patternsView').style.display = tab==='patterns' ? '' : 'none';
+  document.getElementById('samplesView').style.display = tab==='samples' ? '' : 'none';
   if(tab==='midi') renderMidiMap();
   if(tab==='patterns'){ renderPatternLibrary(); renderTimeline(); }
+  if(tab==='samples') renderSamplesTab();
 }
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
@@ -2147,6 +2411,9 @@ document.querySelectorAll('#accentModule .stepbtn').forEach(btn=>{
     else setAccentOffset(accentClock.offset+d);
   });
 });
+loadPersistedSampleSlots();
+loadPersistedSamples(); // also renders the tab once slots + any saved audio are in
+document.getElementById('addSampleSlotBtn').addEventListener('click', addSampleSlot);
 loadPersistedPatterns();
 document.getElementById('songTitleInput').value = songTitle;
 document.getElementById('loopSongChk').checked = loopSong;
