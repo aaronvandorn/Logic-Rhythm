@@ -27,3 +27,9 @@ Finally, the major controls are all midi controllable, and the machine can learn
 I think that's the most of it.  I am really interested to hear what people think, and what you think could be done to make it more interesting, more fun, and/or more musical.  
 
 Thanks for checking it out! -- Aaron
+
+## Jam Link
+
+Press **Link** in this app and in Logic Rhythm, Boolean Melody Machine and Choir (open each in its own tab or window of the same browser) and they share tempo, start/stop, key and mode, and saved scenes, all locked to one beat grid. See [JAM-LINK.md](JAM-LINK.md) for how it works.
+
+Notes for this app: the tempo slider now runs 40–240 BPM so it matches the others, and a tempo change while running now keeps the steps evenly spaced.
