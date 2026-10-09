@@ -8,7 +8,14 @@
    { bpm, anchorWall, anchorBeat }: beat b happens at anchorWall + (b - anchorBeat) * 60000 / bpm.
    Tempo changes start a new segment that begins slightly in the future, so every app has the same
    mapping from beats to time and nobody drifts. Each app converts that wall time into its own
-   AudioContext time with getOutputTimestamp(). */
+   AudioContext time with getOutputTimestamp().
+
+   Discobot guest: when the page is shown in a frame by Discobot (https://iw978599.github.io/discobot/),
+   the app becomes a unit in Discobot's rack. Discobot sends tempo and start/stop on the same wall
+   clock, asks for and restores the app's settings, and takes its sound as PCM blocks over
+   postMessage. While hosted, Jam Link's own linking is off for the session. None of this is active
+   unless the page is framed and has received a valid "hello". Protocol:
+   https://github.com/iw978599/discobot/blob/main/docs/GUEST_PROTOCOL.md */
 (function(global){
   'use strict';
   var CHANNEL_NAME = 'aaronvandorn-jam-v1';
@@ -21,6 +28,19 @@
   var BROWSER_ID = (function(){ try{ var v = localStorage.getItem('jam:browserId'); if(!v){ v = Math.random().toString(36).slice(2, 10); localStorage.setItem('jam:browserId', v); } return v; }catch(e){ return Math.random().toString(36).slice(2, 10); } })();
   var MAX_SLOTS = 8, CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   var APP_NAMES = { choir:'Choir', logic:'Logic Rhythm', bmm:'Melody Machine' };
+  var FULL_NAMES = { choir:'Choir', logic:'Logic Rhythm', bmm:'Boolean Melody Machine' };
+  var GUEST_PROTOCOL = 1;
+  var HOST_WAIT_MS = 1500;  // a framed page waits this long for Discobot before restoring the saved Link setting
+  // Gathers the tapped output into 1,024-frame stereo blocks for the host.
+  var GUEST_TAP_SRC = 'registerProcessor("jam-guest-tap", class extends AudioWorkletProcessor {' +
+    'constructor(){ super(); this.l = new Float32Array(1024); this.r = new Float32Array(1024); this.n = 0; this.start = 0; }' +
+    'process(inputs){ var input = inputs[0], a = input && input[0], b = input && (input[1] || input[0]);' +
+    ' if(this.n === 0) this.start = currentFrame;' +
+    ' for(var i = 0; i < 128; i++){ var x = a ? a[i] : 0, y = b ? b[i] : 0; this.l[this.n + i] = x > 1 ? 1 : x < -1 ? -1 : x; this.r[this.n + i] = y > 1 ? 1 : y < -1 ? -1 : y; }' +
+    ' this.n += 128;' +
+    ' if(this.n >= 1024){ this.port.postMessage({ frame: this.start, l: this.l, r: this.r }, [this.l.buffer, this.r.buffer]);' +
+    '  this.l = new Float32Array(1024); this.r = new Float32Array(1024); this.n = 0; }' +
+    ' return true; } });';
 
   function wallNow(){ return performance.timeOrigin + performance.now(); }
   function clampBpm(v){ return Math.max(BPM_MIN, Math.min(BPM_MAX, v)); }
@@ -59,6 +79,9 @@
     var channel = null, hbTimer = null, uiTimer = null;
     var pendingScene = null;
     var ui = null;
+    // Discobot hosting. `framed` is fixed at load; `host.on` only after a valid hello.
+    var framed = false; try{ framed = global.parent !== global; }catch(e){ framed = true; }
+    var host = { on: false, origin: null, latencyMs: 0, audio: false, playing: false, segs: [], startBeat: 0 };
 
     /* ---- clock conversion ---- */
     function ctx(){ return o.ctx ? o.ctx() : null; }
@@ -78,14 +101,18 @@
     }
     function ctxAtWall(w){ var r = mapRef(); return r ? r.ctxT + (w - r.wall) / 1000 : 0; }
     function wallAtCtx(t){ var r = mapRef(); return r ? r.wall + (t - r.ctxT) * 1000 : wallNow(); }
+    // How far this app is shifted from the shared beat (ms, + = later). Normally the user's Sync trim.
+    // While Discobot carries the sound, everything is played latencyMs early instead (Discobot holds
+    // the audio back by the same amount); the trim is for this page's own speakers, so it is not used.
+    function offsetMs(){ return host.on && host.audio ? -host.latencyMs : trimMs; }
     // Local beat 0 is the moment this app started. These are what the apps schedule against.
     function timeOfBeat(localBeat){
       if(!mySegs.length) return ctx() ? ctx().currentTime : 0;
-      return ctxAtWall(beatToWall(mySegs, originBeat + localBeat)) + trimMs / 1000;
+      return ctxAtWall(beatToWall(mySegs, originBeat + localBeat)) + offsetMs() / 1000;
     }
     function beatAt(ctxTime){
       if(!mySegs.length) return 0;
-      return wallToBeat(mySegs, wallAtCtx(ctxTime) - trimMs) - originBeat;
+      return wallToBeat(mySegs, wallAtCtx(ctxTime) - offsetMs()) - originBeat;
     }
     function bpmNow(){
       if(playing && mySegs.length) return mySegs[mySegs.length-1].bpm;
@@ -194,7 +221,8 @@
       refreshUI();
     }
     var pendingJoin = false;
-    function canAutoplay(){ return typeof navigator === 'undefined' || !navigator.userActivation || navigator.userActivation.hasBeenActive; }
+    // Discobot frames the page with allow="autoplay" and the user has pressed play there.
+    function canAutoplay(){ return host.on || typeof navigator === 'undefined' || !navigator.userActivation || navigator.userActivation.hasBeenActive; }
 
     function currentKey(){ return feat.key && o.key ? o.key.get() : null; }
     function applyKey(k){ if(feat.key && o.key && k) withApplying(function(){ o.key.set(k); }); }
@@ -202,6 +230,7 @@
     /* ---- what the apps call ---- */
     function begin(remote){
       var now = wallNow();
+      if(host.on) return beginHosted(now);
       var share = linked && follow.transport && feat.transport;
       var join = share && sharedSegs.length && (remote || anyPeerPlaying());
       if(join){
@@ -235,6 +264,7 @@
     var tempoTimer = null, pendingBpm = null;
     function userTempo(bpm){
       if(applying) return;
+      if(host.on){ hostTempoSnapBack(); return; } // Discobot sets the tempo while hosted
       pendingBpm = bpm;
       if(tempoTimer) return;
       tempoTimer = setTimeout(function(){ tempoTimer = null; commitTempo(pendingBpm); }, 40);
@@ -290,8 +320,9 @@
     function deleteScene(sid){ writeScenes(readScenes().filter(function(s){ return s.id !== sid; })); renderScenes(); }
 
     /* ---- link on/off ---- */
-    function setLinked(on){
+    function setLinked(on, sessionOnly){
       if(on === linked) return;
+      if(on && host.on) return; // no linking while Discobot drives the transport
       if(on){
         linked = true;
         if(typeof BroadcastChannel !== 'undefined'){
@@ -312,7 +343,7 @@
         global.removeEventListener('storage', storageHandler);
         peers = {};
       }
-      prefSet('linked', on);
+      if(!sessionOnly) prefSet('linked', on);
       refreshUI();
     }
     function storageHandler(e){
@@ -329,6 +360,7 @@
        and converts the wall times in every message. */
     var net = { peer: null, code: null, slot: -1, entries: {}, scan: null, ping: null, status: '', claiming: false };
     var sendDest = null, tappedNodes = [];
+    var monitor = null, pcm = { node: null, ctx: null, ready: null, blocks: 0 }; // Discobot: own-speaker gain, PCM tap
 
     function leadMs(){
       var worst = 0;
@@ -356,6 +388,7 @@
       if(tappedNodes.indexOf(node) < 0){ tappedNodes.push(node); if(tappedNodes.length > 8) tappedNodes.shift(); }
       var d = ensureSendDest();
       if(d){ try{ node.connect(d); }catch(e){} }
+      if(pcm.node && node.context === pcm.ctx){ try{ node.connect(pcm.node); }catch(e){} }
     }
     function sendStream(){ var d = ensureSendDest(); return d ? d.stream : new MediaStream(); }
 
@@ -376,6 +409,7 @@
     function netStatus(text){ net.status = text; refreshUI(); }
 
     function joinRoom(code){
+      if(host.on) return;
       code = normCode(code);
       if(code.length < 4){ netStatus('Enter the room code you were given.'); return; }
       if(net.code) leaveRoom();
@@ -500,6 +534,207 @@
     }
     function setPeerVolume(slot, v){ var e = net.entries[slot]; if(!e) return; e.vol = v; if(e.audio) e.audio.volume = v; }
     function setPeerMuted(slot, m){ var e = net.entries[slot]; if(!e) return; e.muted = m; if(e.audio) e.audio.muted = m; }
+
+    /* ---- Discobot guest ----
+       Discobot frames the page, says hello, then drives the transport with
+       { bpm, anchorWall, anchorBeat } segments on the shared wall clock, which are exactly Jam Link
+       tempo segments. It asks for settings (getState) and restores them (setState), and while its
+       audio is on it takes this app's sound as PCM over postMessage instead of the page's speakers. */
+    function beginHosted(now){
+      if(host.playing && host.segs.length){
+        // Discobot's start beat (normally beat 0, placed a little in the future). Only if that can no
+        // longer be placed on time, come in on the next bar line.
+        var earliest = wallToBeat(host.segs, now + JOIN_LEAD_MS - offsetMs());
+        originBeat = earliest <= host.startBeat + 1e-9 ? host.startBeat
+                   : Math.ceil(earliest / BAR_BEATS - 1e-9) * BAR_BEATS;
+        mySegs = host.segs.slice();
+      } else {
+        // Started while Discobot is stopped (or it stopped while the app was getting ready):
+        // run on a local clock for a moment and stop again.
+        mySegs = [{ bpm: o.bpm(), anchorWall: now + JOIN_LEAD_MS, anchorBeat: 0 }];
+        originBeat = 0;
+        setTimeout(function(){ if(host.on && !host.playing && playing && o.stop) withApplying(function(){ o.stop(true); }); }, 0);
+      }
+      playing = true;
+      refreshUI();
+      return { startCtx: timeOfBeat(0), bpm: mySegs[mySegs.length-1].bpm };
+    }
+    var snapTimer = null;
+    function hostBpm(){ return host.segs.length ? host.segs[host.segs.length-1].bpm : null; }
+    // The user moved this app's tempo control while hosted: put it back to Discobot's tempo.
+    function hostTempoSnapBack(){
+      if(hostBpm() === null) return;
+      clearTimeout(snapTimer);
+      snapTimer = setTimeout(function(){ if(host.on && hostBpm() !== null) withApplying(function(){ o.applyBpm(hostBpm()); }); }, 800);
+    }
+    function hostSend(msg, transfer){
+      if(!framed) return;
+      msg.discobotGuest = GUEST_PROTOCOL;
+      // Before the host has spoken its address is unknown; only "ready" is sent then.
+      var target = host.origin && host.origin !== 'null' ? host.origin : '*';
+      try{ global.parent.postMessage(msg, target, transfer || []); }catch(e){}
+    }
+    function enterHosted(){
+      if(host.on) return;
+      host.on = true;
+      clearTimeout(autoLinkTimer); autoLinkTimer = null;
+      if(net.code) leaveRoom();
+      if(linked) setLinked(false, true);     // for this session only; the saved Link setting is kept
+      if(playing && o.stop) withApplying(function(){ o.stop(true); }); // Discobot starts it on its own beat
+      (o.hostHide || []).forEach(function(sel){
+        Array.prototype.forEach.call(document.querySelectorAll(sel), function(el){ el.style.display = 'none'; });
+      });
+      syncHostAudio();
+    }
+    function onHostMessage(e){
+      if(e.source !== global.parent) return;
+      var m = e.data;
+      if(!m || typeof m !== 'object' || m.discobotGuest !== GUEST_PROTOCOL || typeof m.type !== 'string') return;
+      if(host.origin === null){
+        if(m.type !== 'hello' || m.host !== 'discobot') return; // hosted mode starts with a valid hello
+        host.origin = e.origin;
+      } else if(e.origin !== host.origin) return;
+      switch(m.type){
+        case 'hello':
+          if(m.host !== 'discobot') return;
+          var lat = Number(m.latencyMs);
+          host.latencyMs = isFinite(lat) ? Math.max(0, Math.min(1000, lat)) : 0;
+          enterHosted();
+          break;
+        case 'transport': hostTransport(m); break;
+        case 'getState':
+          if(typeof m.id === 'string' && m.id.length <= 256) hostGetState(m.id);
+          break;
+        case 'setState': hostSetState(m.state); break;
+        case 'audio':
+          if(typeof m.on !== 'boolean') return;
+          host.audio = m.on;
+          syncHostAudio();
+          break;
+        default: return;
+      }
+      refreshUI();
+    }
+    function hostTransport(m){
+      if(m.playing === false){
+        host.playing = false;
+        if(playing && o.stop) withApplying(function(){ o.stop(true); });
+        return;
+      }
+      if(m.playing !== true) return;
+      var bpm = Number(m.bpm), aw = Number(m.anchorWall), ab = Number(m.anchorBeat);
+      if(!isFinite(bpm) || bpm < 1 || bpm > 1000 || !isFinite(aw) || !isFinite(ab) || ab < 0) return;
+      var seg = { bpm: bpm, anchorWall: aw, anchorBeat: ab };
+      if(!host.playing){
+        // Start. The tempo is followed exactly, whatever this app's own control allows.
+        host.playing = true; host.segs = [seg]; host.startBeat = ab;
+        withApplying(function(){
+          if(feat.tempo) o.applyBpm(bpm);
+          if(playing && o.stop) o.stop(true);
+          if(o.start) o.start(true);
+        });
+      } else {
+        // Tempo change while playing: the beat count carries on.
+        host.segs = insertSeg(host.segs, seg);
+        if(playing) mySegs = insertSeg(mySegs, seg);
+        if(feat.tempo) withApplying(function(){ o.applyBpm(bpm); });
+      }
+    }
+    function hostGetState(reqId){
+      var state = null;
+      if(o.scene){ try{ state = JSON.parse(JSON.stringify(o.scene.capture())); }catch(e){ state = null; } }
+      hostSend({ type:'state', id: reqId, state: state });
+    }
+    // Sets what is on screen only: nothing goes into saved scenes or the app's saved patterns.
+    function hostSetState(state){
+      if(!o.scene || !state || typeof state !== 'object' || Array.isArray(state)) return;
+      withApplying(function(){
+        try{ o.scene.apply(state); }catch(e){ if(global.console) console.warn('Jam Link: could not apply the settings from Discobot', e); }
+        if(feat.tempo && host.playing && hostBpm() !== null) o.applyBpm(hostBpm());
+      });
+    }
+    // The app connects its output here instead of to ctx.destination. Its gain is 1 except while
+    // Discobot carries the sound, when the page's own speakers are silent.
+    function speakers(){
+      var c = ctx();
+      if(!c) return null;
+      if(!monitor || monitor.context !== c){
+        monitor = c.createGain();
+        monitor.gain.value = host.on && host.audio ? 0 : 1;
+        monitor.connect(c.destination);
+        if(host.on && host.audio) syncHostAudio();
+      }
+      return monitor;
+    }
+    function syncHostAudio(){
+      var want = host.on && host.audio;
+      if(monitor){ try{ monitor.gain.value = want ? 0 : 1; }catch(e){} }
+      if(!want){ stopPcm(); return; }
+      var c = ctx();
+      if(!c || !c.audioWorklet || typeof AudioWorkletNode === 'undefined') return;
+      if(pcm.ctx === c) return;              // running, or starting
+      stopPcm();
+      pcm.ctx = c;
+      if(!pcm.ready || pcm.ready.ctx !== c){
+        var url = URL.createObjectURL(new Blob([GUEST_TAP_SRC], { type:'application/javascript' }));
+        pcm.ready = { ctx: c, promise: c.audioWorklet.addModule(url) };
+      }
+      pcm.ready.promise.then(function(){
+        if(!(host.on && host.audio) || pcm.ctx !== c || pcm.node) return;
+        var node = new AudioWorkletNode(c, 'jam-guest-tap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+        node.port.onmessage = function(ev){
+          var d = ev.data;
+          if(pcm.node !== node) return;
+          // When the block's first sample would have been heard on this page (no trim, no latency).
+          hostSend({ type:'audio', wall: wallAtCtx(d.frame / c.sampleRate), sampleRate: c.sampleRate, left: d.l, right: d.r }, [d.l.buffer, d.r.buffer]);
+          pcm.blocks++;
+        };
+        tappedNodes.forEach(function(n){ if(n.context === c){ try{ n.connect(node); }catch(e){} } });
+        node.connect(c.destination);         // outputs silence; this only keeps the tap running
+        pcm.node = node;
+      }).catch(function(err){
+        if(pcm.ctx === c) pcm.ctx = null;
+        pcm.ready = null;
+        if(global.console) console.warn('Jam Link: could not start sending sound to Discobot', err);
+      });
+    }
+    function stopPcm(){
+      var node = pcm.node;
+      if(node){
+        tappedNodes.forEach(function(n){ try{ n.disconnect(node); }catch(e){} });
+        try{ node.port.onmessage = null; node.disconnect(); }catch(e){}
+      }
+      pcm.node = null; pcm.ctx = null;
+    }
+    // Tell Discobot soon after the user changes something, at most about once a second.
+    var changeTimer = null;
+    function noteUserChange(e){
+      if(!host.on || applying || !e.isTrusted) return;
+      if(ui && ui.root && e.target && e.target.nodeType && ui.root.contains(e.target)) return;
+      if(changeTimer) return;
+      changeTimer = setTimeout(function(){ changeTimer = null; if(host.on) hostSend({ type:'stateChanged' }); }, 1000);
+    }
+    // If the browser keeps sound blocked in the frame, one click inside it fixes it for the session.
+    var unlockEl = null;
+    function refreshUnlock(){
+      if(!host.on || typeof document === 'undefined' || !document.body) return;
+      var c = ctx();
+      var need = !!(host.playing && c && c.state !== 'running');
+      if(need && !unlockEl){
+        unlockEl = document.createElement('button');
+        unlockEl.type = 'button';
+        unlockEl.textContent = 'Click here to enable sound';
+        unlockEl.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:2147483001;padding:8px 16px;border-radius:6px;border:1px solid #3a78c2;background:#3a78c2;color:#fff;font:600 13px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)';
+        unlockEl.addEventListener('click', function(){
+          if(o.unlock) o.unlock();
+          var cc = ctx(); if(cc && cc.state !== 'running' && cc.resume) cc.resume();
+          if(host.playing && !playing && o.start) withApplying(function(){ o.start(true); });
+          setTimeout(refreshUnlock, 200);
+        });
+        document.body.appendChild(unlockEl);
+      }
+      if(unlockEl) unlockEl.style.display = need ? '' : 'none';
+    }
 
     /* ---- UI ---- */
     var CSS = [
@@ -674,23 +909,46 @@
       if(ui.scenes) ui.scenes.style.display = '';
       refreshOnline();
       ui.help.textContent = linked && follow.transport && feat.transport ? 'Start or stop any linked app and the others follow. An app that joins while others play comes in on the next bar.' : '';
+      if(host.on) refreshHostedUI();
+    }
+    function refreshHostedUI(){
+      ui.toggle.textContent = 'Hosted'; ui.toggle.disabled = true;
+      ui.toggle.classList.add('jam-on'); ui.tab.classList.add('on');
+      ui.sum.textContent = 'Discobot' + (host.playing ? ' · playing' : '');
+      ui.status.textContent = 'In a Discobot rack. Link is off while hosted: Discobot sets the tempo and starts and stops this app' + (host.audio ? ', and plays its sound.' : '.');
+      ui.help.textContent = host.audio ? 'Sync trim is not used while Discobot plays the sound.' : '';
+      [ui.createBtn, ui.joinBtn, ui.codeEl].forEach(function(el){ if(el) el.disabled = true; });
+      Array.prototype.forEach.call(ui.root.querySelectorAll('input[data-k]'), function(cb){ cb.disabled = true; });
+      ui.netStatus.textContent = 'Online rooms are off while this app is in a Discobot rack.';
+      refreshUnlock();
     }
 
     var api = {
       id: id, app: o.app,
       begin: begin, end: end, timeOfBeat: timeOfBeat, beatAt: beatAt, bpm: bpmNow,
       userTempo: userTempo, userKey: userKey,
-      tapAudio: tapAudio, joinRoom: joinRoom, createRoom: createRoom, leaveRoom: leaveRoom, get room(){ return net.code; },
+      tapAudio: tapAudio, speakers: speakers, get hosted(){ return host.on; }, joinRoom: joinRoom, createRoom: createRoom, leaveRoom: leaveRoom, get room(){ return net.code; },
       get linked(){ return linked; }, get applying(){ return applying; }, get playing(){ return playing; },
       setLinked: setLinked, setFollow: setFollow,
       saveScene: saveScene, loadScene: loadScene, scenes: readScenes,
       diag: function(){ var c = ctx(); return c ? { now: wallNow(), heard: wallAtCtx(c.currentTime), state: c.state, outLat: c.outputLatency, baseLat: c.baseLatency } : null; },
       trace: function(ctxTime, tag){ if(global.__jamTrace) global.__jamTrace.push({ app: o.app, tag: tag, wall: wallAtCtx(ctxTime) }); },
-      debug: function(){ return { mySegs: mySegs, sharedSegs: sharedSegs, originBeat: originBeat, peers: peers, net: Object.keys(net.entries).map(function(k){ var e = net.entries[k]; return { slot: e.slot, open: e.open, off: e.off, rtt: e.rtt, hasAudio: !!e.audio, ignore: e.ignore }; }) }; }
+      debug: function(){ return { mySegs: mySegs, sharedSegs: sharedSegs, originBeat: originBeat, peers: peers,
+        host: { on: host.on, origin: host.origin, latencyMs: host.latencyMs, audio: host.audio, playing: host.playing, segs: host.segs, blocksSent: pcm.blocks }, net: Object.keys(net.entries).map(function(k){ var e = net.entries[k]; return { slot: e.slot, open: e.open, off: e.off, rtt: e.rtt, hasAudio: !!e.audio, ignore: e.ignore }; }) }; }
     };
     global.jamLink = api; // handy for debugging in the console
     mountUI();
-    if(prefGet('linked', false)) setLinked(true);
+    // In a frame, give Discobot a moment to say hello before restoring the saved Link setting.
+    var autoLinkTimer = null;
+    if(prefGet('linked', false)){
+      if(framed) autoLinkTimer = setTimeout(function(){ autoLinkTimer = null; if(!host.on) setLinked(true); }, HOST_WAIT_MS);
+      else setLinked(true);
+    }
+    if(framed){
+      global.addEventListener('message', onHostMessage);
+      ['input', 'change', 'click'].forEach(function(t){ document.addEventListener(t, noteUserChange, true); });
+      hostSend({ type:'ready', name: o.title || FULL_NAMES[o.app] || o.app, features: o.scene ? ['transport', 'state', 'audio'] : ['transport', 'audio'] });
+    }
     global.addEventListener('beforeunload', function(){ if(linked) send({ t:'bye' }); try{ if(net.peer) net.peer.destroy(); }catch(e){} });
     try{
       var wanted = new URLSearchParams(global.location.search).get('jam');

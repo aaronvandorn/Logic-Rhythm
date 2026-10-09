@@ -42,7 +42,26 @@ Notes:
 
 Each tab has its own audio clock, so the shared timeline lives on the wall clock (`performance.timeOrigin + performance.now()`). A transport is a list of tempo segments, `bpm`, `anchorWall` and `anchorBeat`, so beat *b* happens at a known wall time. Each app turns that into its own AudioContext time with `getOutputTimestamp()` and schedules its notes on beats. Messages travel over a `BroadcastChannel`, so every app must be served from the same origin (they are, on `aaronvandorn.github.io`).
 
+In a Discobot frame the same segments come from Discobot instead: its `transport` message is a segment, and the apps schedule against it exactly as they do in a jam. The sound is sent from an AudioWorklet in 1,024-frame blocks, each stamped with the wall time its first sample would have been heard.
+
 The module is the same block of code in all three files, between `JAM-LINK:BEGIN` and `JAM-LINK:END`; `jam-link.js` is the source copy.
+
+## Discobot guest
+
+[Discobot](https://iw978599.github.io/discobot/) is a browser sequencer and drum machine that can hold other people's web instruments as units in its rack. Logic Rhythm, Boolean Melody Machine and Choir can each be one of those units.
+
+To add one: in Discobot choose **Project → Add Guest Instrument** and paste the app's address, for example `https://aaronvandorn.github.io/Choir/`. The unit should read **Connected**. From then on:
+
+- **Discobot drives the transport.** **Play All** starts the app on Discobot's first beat, tempo changes are followed exactly (Discobot's full 20–400 BPM range, not this app's 40–240 slider), and **Stop All** stops it. The app's own play button is hidden while it is hosted.
+- **Discobot plays the sound.** The page's own speakers go silent and its output goes into Discobot's mixer as uncompressed audio. To land on the beat after the trip through Discobot, the app plays everything a fixed amount early (Discobot says how much, currently 120 ms) and Discobot holds the audio back by the same amount. Sync trim is not used while this is on.
+- **Discobot keeps the settings.** The app's current pattern and controls are saved with the Discobot project and put back when it is opened again. This does not touch the app's own saved patterns or the Jam scenes.
+- **Jam Link is off while hosted**, for that session only: no linking with other tabs and no online rooms, because Discobot is in charge of the transport. The dock says so. The saved Link setting is left as it was.
+
+If the browser keeps sound blocked inside the frame, a **Click here to enable sound** button appears; one click fixes it for the session.
+
+Nothing changes when the app is opened on its own. All of this only switches on when the page is in a frame and Discobot has said hello. The protocol is described in [Discobot's GUEST_PROTOCOL.md](https://github.com/iw978599/discobot/blob/main/docs/GUEST_PROTOCOL.md).
+
+To try a local copy, serve the folder (`python -m http.server 8000`) and add `http://localhost:8000/` as a guest; a published address must be `https`.
 
 ## Limits
 
