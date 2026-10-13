@@ -28,6 +28,14 @@ I think that's the most of it.  I am really interested to hear what people think
 
 Thanks for checking it out! -- Aaron
 
+## Percussion kit
+
+Alongside the drum kit there's a second set of synthesized sounds: traditional hand drums, bells, wood and shakers (conga, tumba, conga slap, bongos, djembe bass and tone, surdo, talking drum, tabla, timbale, cowbell, agogo, triangle, clave, woodblock, shaker, cabasa, tambourine, guiro). Every slot's sound dropdown lists them under **Percussion**.
+
+The **Kit** selector in the top bar switches all seven slots between **Drum Kit** and **Percussion** at once. Only the sounds change; the clocks and gates stay the same, so any pattern can be heard as a percussion ensemble. Each slot remembers the sound it had on the other side, so switching back returns anything you picked by hand. Mixing kit and percussion sounds is fine; the selector then reads **Mixed**.
+
+Three new patterns in the library are set up for it: **Percussion 12/8** (the Afrobeat pattern as a hand-drum ensemble with the bell on agogo), **Percussion 3 over 4** (tumba playing 3 against cowbell playing 4, with the conga slap only where they disagree), and **Percussion Polyrhythm** (the odd-numbered clocks of Pure Polyrhythm on pitched drums and bells).
+
 ## Jam Link
 
 Press **Link** in this app and in Logic Rhythm, Boolean Melody Machine and Choir (open each in its own tab or window of the same browser) and they share tempo, start/stop, key and mode, and saved scenes, all locked to one beat grid. **Create room** or **Join** with a short code to do the same with people in other places, and hear each other's apps. See [JAM-LINK.md](JAM-LINK.md) for how it works.

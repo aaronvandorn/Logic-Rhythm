@@ -355,6 +355,11 @@ body.simplified-mode .track-row{grid-template-columns:172px 176px 1fr 70px;}
         <option value="24-triplet">24 (12/8 ×2)</option>
         <option value="32-straight">32 (4/4 ×2)</option>
       </select></div></div>
+      <div class="knob-group"><label>Kit</label><div class="row"><select id="kitSelect" title="Switch every slot between drum-kit sounds and traditional percussion. Only the sounds change; the clocks and gates stay the same. Each slot can still be set by hand from its own dropdown.">
+        <option value="kit">Drum Kit</option>
+        <option value="perc">Percussion</option>
+        <option value="mixed" disabled>Mixed</option>
+      </select></div></div>
       <div class="knob-group adv-only"><label>Swing</label><div class="row"><input type="range" id="swingSlider" min="0" max="50" value="0"><span id="swingVal">0%</span></div></div>
       <div class="knob-group"><label>Master</label><div class="row"><input type="range" id="masterVol" min="0" max="100" value="80"></div></div>
       <button id="lfoBtn" class="lfo-btn adv-only">∿ LFO</button>
@@ -1737,6 +1742,11 @@ function buildExamplePatterns(){
   const tr = (id,name,clockA,clockB,gate,vol,mute)=>(
     {id,name,clockA,clockB,gate,vol,mute:!!mute,solo:false,velocity:1,velocityLfo:false,velocityLfoAmt:0,swingAmt:0,swingLfo:false,swingLfoAmt:0,accent:false,nudge:0,voice:LEGACY_VOICE_MAP[id]||id}
   );
+  // Same as tr(), but the slot plays a percussion voice. It remembers its kit sound so the Kit
+  // switch can flip the pattern back to the drum kit.
+  const ptr = (id,voice,clockA,clockB,gate,vol,mute)=>Object.assign(
+    tr(id,PERC_VOICE_DEFS[voice].label,clockA,clockB,gate,vol,mute), {voice, kitVoice:LEGACY_VOICE_MAP[id]}
+  );
   return [
     { id:'preset-default', name:'Default', state:{
         clocks:stdClocks(),
@@ -1910,6 +1920,72 @@ function buildExamplePatterns(){
           tr('ohat','OP HAT',3,5,'OR',0.4),  // ÷9 OR ÷13
           tr('tom','TOM',4,5,'XOR',0.55),    // ÷11 XOR ÷13
           tr('rim','RIM',1,2,'OR',0.35),     // ÷5 OR ÷7
+        ],
+        steps:32, bpm:100, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-perc-12-8', name:'Percussion 12/8', state:{
+        /* The Afrobeat pattern's clocks and gates, played by a percussion ensemble instead of a
+           kit: djembe bass on the beat, agogo carrying the standard bell pattern, shaker on every
+           triplet partial, conga tones on the shuffle and the tumba on the 4-against-3 hemiola. */
+        clocks:[
+          {division:5,offset:0,lfo:false}, // bell part A — 0,5,10
+          {division:5,offset:3,lfo:false}, // bell part B — 3,8
+          {division:1,offset:0,lfo:false}, // every triplet partial
+          {division:3,offset:0,lfo:false}, // the beat pulse
+          {division:4,offset:0,lfo:false}, // the cross-rhythm — 4 against the 3-grouping
+          {division:6,offset:3,lfo:false}, // off-center accent
+          {division:3,offset:2,lfo:false}, // 3rd triplet partial
+        ],
+        tracks:[
+          ptr('kick','djembeBass',3,2,'AND',0.85),   // 0,3,6,9 — the anchor
+          ptr('snare','congaSlap',0,3,'XOR',0.45),   // slaps around the bell
+          ptr('clap','clave',5,2,'AND',0.35,true),   // muted — spare
+          ptr('chat','shaker',2,2,'AND',0.4),        // shekere — every partial
+          ptr('ohat','congaHi',3,6,'OR',0.55),       // open tones on the shuffle
+          ptr('tom','congaLo',3,4,'XOR',0.6),        // tumba — the hemiola
+          ptr('rim','agogoHi',0,1,'OR',0.6),         // the bell — 0,3,5,8,10
+        ],
+        steps:12, meterKey:'4-triplet', bpm:110, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-perc-3-4', name:'Percussion 3 over 4', state:{
+        /* Two bars of 12/8 (24 steps) with three against four stated plainly: the tumba plays 3
+           even hits per bar-pair (÷8) while the cowbell plays 4 (÷6). The conga slap lands only
+           where the two layers disagree (÷6 XOR ÷8), so you hear the cross-rhythm as a third
+           part. Mute one side at a time to hear each layer on its own. */
+        clocks:[
+          {division:12,offset:0,lfo:false}, // the bar — 0,12
+          {division:8,offset:0,lfo:false},  // the 3 — 0,8,16
+          {division:6,offset:0,lfo:false},  // the 4 — 0,6,12,18
+          {division:2,offset:0,lfo:false},  // steady pulse for the shaker
+          {division:8,offset:4,lfo:false},  // clave, halfway between the 3s
+          {division:4,offset:2,lfo:false},  // offbeat jingles
+        ],
+        tracks:[
+          ptr('kick','surdo',0,0,'A',0.9),           // the bar
+          ptr('snare','congaSlap',2,1,'XOR',0.45),   // where 3 and 4 disagree
+          ptr('clap','clave',4,0,'A',0.45),          // between the 3s
+          ptr('chat','shaker',3,0,'A',0.35),         // steady
+          ptr('ohat','tambourine',5,0,'A',0.25,true),// muted — offbeat jingles
+          ptr('tom','congaLo',1,0,'A',0.7),          // the 3
+          ptr('rim','cowbell',2,0,'A',0.5),          // the 4
+        ],
+        steps:24, meterKey:'4-triplet', bpm:90, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
+    { id:'preset-perc-poly', name:'Percussion Polyrhythm', state:{
+        /* The Pure Polyrhythm clocks (all odd: 3,5,7,9,11,13 — no two share a pulse), voiced as
+           pitched hand drums and bells so the overlapping cycles are easy to tell apart. */
+        clocks:[
+          {division:3,offset:0,lfo:false}, {division:5,offset:0,lfo:false}, {division:7,offset:0,lfo:false},
+          {division:9,offset:0,lfo:false}, {division:11,offset:0,lfo:false}, {division:13,offset:0,lfo:false},
+        ],
+        tracks:[
+          ptr('kick','djembeBass',0,2,'AND',0.85),   // ÷3 AND ÷7
+          ptr('snare','talkingDrum',1,3,'XOR',0.55), // ÷5 XOR ÷9
+          ptr('clap','woodblock',2,4,'OR',0.4),      // ÷7 OR ÷11
+          ptr('chat','cabasa',0,1,'XOR',0.35),       // ÷3 XOR ÷5
+          ptr('ohat','agogoLo',3,5,'OR',0.4),        // ÷9 OR ÷13
+          ptr('tom','bongoLo',4,5,'XOR',0.55),       // ÷11 XOR ÷13
+          ptr('rim','bongoHi',1,2,'OR',0.4),         // ÷5 OR ÷7
         ],
         steps:32, bpm:100, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
     }},
@@ -2205,6 +2281,144 @@ function playRim(dest,t,v){
   osc.connect(og); og.connect(dest);
   osc.start(t); osc.stop(t+0.025);
 }
+
+/* ================= traditional percussion =================
+   A second synthesized palette — hand drums, bells, wood and shakers — so the rack can work as
+   a polyrhythmic percussion ensemble instead of (or mixed in with) a drum kit. Same approach as
+   the kit voices above: everything is built from oscillators and the shared noise buffer at hit
+   time, no samples to load. Three small helpers keep each instrument down to a few lines:
+     percTone  — one oscillator with an optional pitch bend (drum heads drop in pitch as they settle)
+     percNoise — one filtered noise burst (slaps, rattles, jingles), optionally with a soft attack
+     percEnv   — the envelope both of them use */
+function percEnv(g, level, t, decay, attack){
+  const lv = Math.max(level, 0.001); // exponential ramps can't start from or reach 0
+  g.gain.cancelScheduledValues(t);
+  if(attack>0){ g.gain.setValueAtTime(0.0008, t); g.gain.exponentialRampToValueAtTime(lv, t+attack); }
+  else g.gain.setValueAtTime(lv, t);
+  g.gain.exponentialRampToValueAtTime(0.0008, t+attack+decay);
+}
+function percTone(dest, t, o){
+  const {type='sine', f0, f1=f0, bend=0.04, level, decay, attack=0} = o;
+  const osc=ctx.createOscillator(); osc.type=type;
+  osc.frequency.setValueAtTime(f0, t);
+  if(f1!==f0) osc.frequency.exponentialRampToValueAtTime(f1, t+bend);
+  const g=ctx.createGain(); percEnv(g, level, t, decay, attack);
+  osc.connect(g); g.connect(dest);
+  osc.start(t); osc.stop(t+attack+decay+0.03);
+  return osc;
+}
+function percNoise(dest, t, o){
+  const {ftype='bandpass', freq, Q=1, level, decay, attack=0} = o;
+  const n=noiseSrc(); const f=ctx.createBiquadFilter(); f.type=ftype; f.frequency.value=freq; f.Q.value=Q;
+  const g=ctx.createGain(); percEnv(g, level, t, decay, attack);
+  n.connect(f); f.connect(g); g.connect(dest);
+  n.start(t); n.stop(t+attack+decay+0.03);
+}
+
+// Hand drums: a pitched head (sine, small downward bend), a little overtone, and a skin transient.
+function playConga(dest,t,v,f){
+  percTone(dest,t,{f0:f*1.09, f1:f, bend:0.04, level:0.8*v, decay:0.34});
+  percTone(dest,t,{type:'triangle', f0:f*2.02, level:0.12*v, decay:0.05});
+  percNoise(dest,t,{freq:1800, level:0.22*v, decay:0.02});
+}
+function playCongaSlap(dest,t,v){
+  percNoise(dest,t,{freq:2400, Q:1.2, level:0.7*v, decay:0.07});
+  percNoise(dest,t,{ftype:'highpass', freq:5000, level:0.22*v, decay:0.015});
+  percTone(dest,t,{type:'triangle', f0:440, f1:400, bend:0.02, level:0.35*v, decay:0.06});
+}
+function playBongo(dest,t,v,f){
+  percTone(dest,t,{f0:f*1.1, f1:f, bend:0.02, level:0.7*v, decay:0.15});
+  percTone(dest,t,{type:'triangle', f0:f*2.1, level:0.1*v, decay:0.04});
+  percNoise(dest,t,{freq:3000, level:0.2*v, decay:0.015});
+}
+function playDjembeBass(dest,t,v){
+  percTone(dest,t,{f0:115, f1:70, bend:0.08, level:1.0*v, decay:0.36});
+  percNoise(dest,t,{ftype:'lowpass', freq:600, level:0.3*v, decay:0.04});   // the palm thump
+}
+function playDjembeTone(dest,t,v){
+  percTone(dest,t,{f0:320, f1:285, bend:0.03, level:0.7*v, decay:0.24});
+  percTone(dest,t,{type:'triangle', f0:610, level:0.14*v, decay:0.06});
+  percNoise(dest,t,{freq:1500, level:0.2*v, decay:0.02});
+}
+function playSurdo(dest,t,v){
+  percTone(dest,t,{f0:82, f1:56, bend:0.1, level:1.0*v, decay:0.7});
+  percNoise(dest,t,{ftype:'lowpass', freq:400, level:0.35*v, decay:0.05});   // felt mallet
+}
+// Talking drum: squeezing the cords bends the pitch up after the strike, then it relaxes back.
+function playTalkingDrum(dest,t,v){
+  const osc=ctx.createOscillator(); osc.type='sine';
+  osc.frequency.setValueAtTime(165, t);
+  osc.frequency.exponentialRampToValueAtTime(250, t+0.07);
+  osc.frequency.exponentialRampToValueAtTime(205, t+0.32);
+  const g=ctx.createGain(); percEnv(g, 0.85*v, t, 0.36, 0);
+  osc.connect(g); g.connect(dest);
+  osc.start(t); osc.stop(t+0.4);
+  percNoise(dest,t,{freq:1200, level:0.2*v, decay:0.02});
+}
+// Tabla (dayan "na"): a clearly pitched, ringing head with a strong second harmonic.
+function playTabla(dest,t,v){
+  percTone(dest,t,{f0:510, f1:530, bend:0.06, level:0.55*v, decay:0.5});
+  percTone(dest,t,{f0:1060, level:0.22*v, decay:0.3});
+  percTone(dest,t,{f0:1590, level:0.08*v, decay:0.15});
+  percNoise(dest,t,{freq:4000, Q:1.5, level:0.22*v, decay:0.015});
+}
+// Timbale: thin metal-shelled drum — inharmonic ring plus a rim crack.
+function playTimbale(dest,t,v){
+  percTone(dest,t,{f0:540, f1:520, bend:0.03, level:0.5*v, decay:0.45});
+  percTone(dest,t,{f0:1290, level:0.2*v, decay:0.25});
+  percNoise(dest,t,{ftype:'highpass', freq:3000, level:0.4*v, decay:0.04});
+}
+
+// Bells and metal. Inharmonic partials (not whole-number multiples) are what make them read as metal.
+function playCowbell(dest,t,v){
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=900; bp.Q.value=1.4;
+  const g=ctx.createGain(); percEnv(g, 0.5*v, t, 0.34, 0);
+  [562,845].forEach(f=>{
+    const osc=ctx.createOscillator(); osc.type='square'; osc.frequency.value=f;
+    osc.connect(bp); osc.start(t); osc.stop(t+0.38);
+  });
+  bp.connect(g); g.connect(dest);
+}
+function playAgogo(dest,t,v,f){
+  percTone(dest,t,{f0:f, level:0.5*v, decay:0.42});
+  percTone(dest,t,{f0:f*2.71, level:0.16*v, decay:0.2});
+  percNoise(dest,t,{ftype:'highpass', freq:6000, level:0.15*v, decay:0.01});
+}
+function playTriangle(dest,t,v){
+  percTone(dest,t,{f0:2900, level:0.3*v, decay:1.1});
+  percTone(dest,t,{f0:4870, level:0.15*v, decay:0.8});
+  percTone(dest,t,{f0:7310, level:0.07*v, decay:0.5});
+}
+
+// Wood.
+function playClave(dest,t,v){
+  percTone(dest,t,{f0:2500, level:0.75*v, decay:0.055});
+  percTone(dest,t,{type:'triangle', f0:5000, level:0.08*v, decay:0.02});
+}
+function playWoodblock(dest,t,v){
+  percTone(dest,t,{type:'triangle', f0:1080, f1:1020, bend:0.02, level:0.7*v, decay:0.07});
+  percNoise(dest,t,{freq:1050, Q:8, level:0.3*v, decay:0.04});
+}
+
+// Shakers, scrapers, jingles — all noise, shaped by filter and a soft attack.
+function playShaker(dest,t,v){
+  percNoise(dest,t,{freq:6500, Q:0.9, level:0.65*v, decay:0.07, attack:0.025});
+}
+function playCabasa(dest,t,v){
+  percNoise(dest,t,{ftype:'highpass', freq:8000, level:0.4*v, decay:0.05, attack:0.01});
+}
+function playTambourine(dest,t,v){
+  percNoise(dest,t,{ftype:'highpass', freq:6500, level:0.4*v, decay:0.2});
+  percNoise(dest,t,{freq:9000, Q:6, level:0.3*v, decay:0.25});
+  percNoise(dest,t+0.008,{freq:5400, Q:6, level:0.18*v, decay:0.18}); // the second ring of jingles
+}
+function playGuiro(dest,t,v){
+  const ticks=7, len=0.14;
+  for(let i=0;i<ticks;i++){
+    percNoise(dest, t+i*len/ticks, {freq:3200, Q:1.4, level:1.1*v*(0.7+0.3*i/ticks), decay:0.016});
+  }
+}
+
 /* The full palette of selectable sounds. A track's `id` is a stable per-slot identifier (DOM
    element ids, MIDI-map row identity) that never changes; `voice` is which of these sounds is
    currently assigned to that slot, and is what the new dropdown edits. High/Low Kick and Tom
@@ -2223,15 +2437,50 @@ const VOICE_DEFS = {
   tomLo:     {label:'LOW TOM',    synth:(d,t,v)=>playTom(d,t,v,{startFreq:150,endFreq:55,decay:0.34})},
   rim:       {label:'RIM',        synth:(d,t,v)=>playRim(d,t,v)},
 };
+/* The traditional percussion palette. Kept as its own object (so the dropdown can show it as a
+   separate group, and so the Kit switch can tell a percussion voice from a kit voice), then
+   merged into VOICE_DEFS so everything that plays a voice finds it in the one place. */
+const PERC_VOICE_DEFS = {
+  congaHi:    {label:'CONGA',        synth:(d,t,v)=>playConga(d,t,v,330)},
+  congaLo:    {label:'TUMBA',        synth:(d,t,v)=>playConga(d,t,v,225)},
+  congaSlap:  {label:'CONGA SLAP',   synth:(d,t,v)=>playCongaSlap(d,t,v)},
+  bongoHi:    {label:'BONGO HI',     synth:(d,t,v)=>playBongo(d,t,v,560)},
+  bongoLo:    {label:'BONGO LO',     synth:(d,t,v)=>playBongo(d,t,v,390)},
+  djembeBass: {label:'DJEMBE BASS',  synth:(d,t,v)=>playDjembeBass(d,t,v)},
+  djembeTone: {label:'DJEMBE TONE',  synth:(d,t,v)=>playDjembeTone(d,t,v)},
+  surdo:      {label:'SURDO',        synth:(d,t,v)=>playSurdo(d,t,v)},
+  talkingDrum:{label:'TALKING DRUM', synth:(d,t,v)=>playTalkingDrum(d,t,v)},
+  tabla:      {label:'TABLA',        synth:(d,t,v)=>playTabla(d,t,v)},
+  timbale:    {label:'TIMBALE',      synth:(d,t,v)=>playTimbale(d,t,v)},
+  cowbell:    {label:'COWBELL',      synth:(d,t,v)=>playCowbell(d,t,v)},
+  agogoHi:    {label:'AGOGO HI',     synth:(d,t,v)=>playAgogo(d,t,v,1180)},
+  agogoLo:    {label:'AGOGO LO',     synth:(d,t,v)=>playAgogo(d,t,v,880)},
+  triangle:   {label:'TRIANGLE',     synth:(d,t,v)=>playTriangle(d,t,v)},
+  clave:      {label:'CLAVE',        synth:(d,t,v)=>playClave(d,t,v)},
+  woodblock:  {label:'WOODBLOCK',    synth:(d,t,v)=>playWoodblock(d,t,v)},
+  shaker:     {label:'SHAKER',       synth:(d,t,v)=>playShaker(d,t,v)},
+  cabasa:     {label:'CABASA',       synth:(d,t,v)=>playCabasa(d,t,v)},
+  tambourine: {label:'TAMBOURINE',   synth:(d,t,v)=>playTambourine(d,t,v)},
+  guiro:      {label:'GUIRO',        synth:(d,t,v)=>playGuiro(d,t,v)},
+};
+const KIT_VOICE_KEYS = Object.keys(VOICE_DEFS);
+Object.assign(VOICE_DEFS, PERC_VOICE_DEFS);
+function isPercVoice(key){ return !!PERC_VOICE_DEFS[key]; }
 /* How each of the 7 fixed slots' sound mapped before voices became selectable — used to
    backfill `voice` on old saved patterns (keyed by slot id) so they keep sounding exactly as
    they used to, and by the preset-builder helper below. */
 const LEGACY_VOICE_MAP = {kick:'kick', snare:'snare', clap:'clap', chat:'chatClosed', ohat:'chatOpen', tom:'tom', rim:'rim'};
+/* What each slot becomes when the Kit switch goes to Percussion — chosen by role, so a pattern
+   built for the kit still makes sense: the low anchor stays low, the backbeat becomes the slap,
+   the steady hat becomes the shaker, the rim (already the bell in the Afrobeat preset) the bell. */
+const PERC_SLOT_MAP = {kick:'djembeBass', snare:'congaSlap', clap:'clave', chat:'shaker', ohat:'tambourine', tom:'congaLo', rim:'cowbell'};
 function escapeHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function voiceOptionsHTML(selected){
-  let html = Object.keys(VOICE_DEFS).map(k=>`<option value="${k}" ${k===selected?'selected':''}>${VOICE_DEFS[k].label}</option>`).join('');
+  const opt = k=>`<option value="${k}" ${k===selected?'selected':''}>${VOICE_DEFS[k].label}</option>`;
+  let html = '<optgroup label="Drum Kit">' + KIT_VOICE_KEYS.map(opt).join('') + '</optgroup>'
+           + '<optgroup label="Percussion">' + Object.keys(PERC_VOICE_DEFS).map(opt).join('') + '</optgroup>';
   const uploaded = sampleSlots.filter(s=>customBuffers[s.id]);
   if(uploaded.length){
     html += '<optgroup label="Custom">' + uploaded.map(s=>
@@ -2249,6 +2498,37 @@ function resolveVoice(voiceKey){
   const slot = sampleSlots.find(s=>s.id===voiceKey);
   if(slot && customBuffers[slot.id]) return {label:slot.name, synth:playCustomSample(slot.id)};
   return null;
+}
+
+/* ================= kit switch =================
+   Swaps every slot between the drum kit and the percussion palette in one move. Only the sound
+   changes — clocks, gates, levels, accents all stay put, so the same logic pattern can be heard
+   as a kit groove or a percussion ensemble. Each slot remembers what it had on the other side
+   (kitVoice / percVoice, saved with the pattern), so flipping back and forth returns any sound
+   you picked by hand — including a custom sample — rather than resetting to the defaults.
+   The selector reads "Mixed" when some slots are kit and some percussion; that's allowed, it's
+   just a display state. */
+function currentKitMode(){
+  const n = tracks.filter(t=>isPercVoice(t.voice)).length;
+  return n===0 ? 'kit' : (n===tracks.length ? 'perc' : 'mixed');
+}
+function setKitMode(mode){
+  tracks.forEach(tr=>{
+    if(mode==='perc' && !isPercVoice(tr.voice)){
+      tr.kitVoice = tr.voice;
+      tr.voice = isPercVoice(tr.percVoice) ? tr.percVoice : (PERC_SLOT_MAP[tr.id] || 'congaHi');
+    } else if(mode==='kit' && isPercVoice(tr.voice)){
+      tr.percVoice = tr.voice;
+      tr.voice = (tr.kitVoice && !isPercVoice(tr.kitVoice) && resolveVoice(tr.kitVoice)) ? tr.kitVoice : (LEGACY_VOICE_MAP[tr.id] || 'kick');
+    }
+    const vd = resolveVoice(tr.voice);
+    if(vd) tr.name = vd.label; // same convention as the per-slot dropdown
+  });
+  renderMatrix();
+}
+function syncKitSelect(){
+  const s = document.getElementById('kitSelect');
+  if(s) s.value = currentKitMode();
 }
 
 /* ================= custom sample slots =================
@@ -2842,12 +3122,14 @@ function renderMatrix(){
     el.appendChild(row);
     renderTrackCells(tr); // single source of truth for cell classes (lit/accent/beat markers) — no duplicated logic to drift out of sync
   });
+  syncKitSelect();
 
   el.querySelectorAll('.voiceSelect').forEach(s=>s.addEventListener('change',e=>{
     const tr = tracks.find(t=>t.id===e.target.dataset.t);
     tr.voice = e.target.value;
     const vd = resolveVoice(tr.voice);
     tr.name = vd ? vd.label : tr.name; // keeps MIDI-map labels and pattern-library previews in sync
+    syncKitSelect();
   }));
   el.querySelectorAll('.clockSelect').forEach(s=>s.addEventListener('change',e=>{
     const tr = tracks.find(t=>t.id===e.target.dataset.t);
@@ -3366,6 +3648,7 @@ function lfoTick(){
 lfoTick();
 
 document.getElementById('randomBtn').addEventListener('click', doRandomize);
+document.getElementById('kitSelect').addEventListener('change', e=>setKitMode(e.target.value));
 document.getElementById('resetBtn').addEventListener('click', ()=>{
   clocks=[{division:1,offset:0,lfo:false},{division:2,offset:0,lfo:false},{division:3,offset:0,lfo:false},{division:4,offset:0,lfo:false},{division:5,offset:0,lfo:false},{division:8,offset:4,lfo:false}];
   accentClock={division:16, offset:8};
