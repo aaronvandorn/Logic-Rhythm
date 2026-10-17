@@ -36,6 +36,12 @@ The **Kit** selector in the top bar switches all seven slots between **Drum Kit*
 
 Three new patterns in the library are set up for it: **Percussion 12/8** (the Afrobeat pattern as a hand-drum ensemble with the bell on agogo), **Percussion 3 over 4** (tumba playing 3 against cowbell playing 4, with the conga slap only where they disagree), and **Percussion Polyrhythm** (the odd-numbered clocks of Pure Polyrhythm on pitched drums and bells).
 
+## Record & export
+
+The **Export** bar under the transport saves the rack as WAV and/or MIDI. The MIDI file has one track per rack row, with General MIDI drum notes on channel 10 (kick 36, snare 38, closed hat 42 and so on), so it drops straight onto a DAW drum kit. Bars follow the grid's meter: 3/4 for the waltz grids, 4/4 otherwise.
+
+While the app's sound is on, the last 48 seconds of what it plays (audio and notes) are kept in memory. **Save last N** takes what just played; **Record next N** starts recording now. With a bar grid running it works in bars (1 to 16), cut on exact bar lines so takes loop seamlessly; otherwise in seconds (5 to 45). Tick **WAV** for exactly what you heard, **MIDI** for the notes, or both for one .zip with the two files. Nothing is uploaded. This comes from the shared `jam-clips.js` module (the `JAM-CLIPS` block in `index.html`), which every app in the set uses.
+
 ## Jam Link
 
 Press **Link** in this app and in Logic Rhythm, Boolean Melody Machine and Choir (open each in its own tab or window of the same browser) and they share tempo, start/stop, key and mode, and saved scenes, all locked to one beat grid. **Create room** or **Join** with a short code to do the same with people in other places, and hear each other's apps. See [JAM-LINK.md](JAM-LINK.md) for how it works.
