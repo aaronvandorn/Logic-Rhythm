@@ -63,6 +63,14 @@ Nothing changes when the app is opened on its own. All of this only switches on 
 
 To try a local copy, serve the folder (`python -m http.server 8000`) and add `http://localhost:8000/` as a guest; a published address must be `https`.
 
+## Clips for Tape Loop Deck
+
+[Tape Loop Deck](https://aaronvandorn.github.io/Tape-Loop-Deck/) can record clips from Logic Rhythm, Boolean Melody Machine and Choir (and Pocket Grains). Open the deck in another tab of the same browser, press play here, and use the deck's **Capture from** bar: **Grab last N bars** takes what has just played, **Record next N bars** starts at the next bar line. Each clip becomes a tape that loops at exactly its length.
+
+This works whether or not Link is on. While a Tape Loop Deck tab is open, each app keeps the last 48 seconds of its own output in memory; with no deck open nothing is recorded. Bars are counted on the Jam Link beat grid (4 beats to the bar), so clips line up with the jam.
+
+The code is the `JAM-CLIPS` block in each `index.html` (`jam-clips.js` is the source copy). It uses its own BroadcastChannel, separate from Jam Link's, so it never shows up as an app in the jam.
+
 ## Limits
 
 - Without a room, it works across tabs and windows of one browser on one computer. Use a room to reach other browsers and other computers.
