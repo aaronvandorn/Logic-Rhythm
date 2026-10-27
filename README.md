@@ -36,6 +36,14 @@ The **Kit** selector in the top bar switches all seven slots between **Drum Kit*
 
 Three new patterns in the library are set up for it: **Percussion 12/8** (the Afrobeat pattern as a hand-drum ensemble with the bell on agogo), **Percussion 3 over 4** (tumba playing 3 against cowbell playing 4, with the conga slap only where they disagree), and **Percussion Polyrhythm** (the odd-numbered clocks of Pure Polyrhythm on pitched drums and bells).
 
+## Sounds from Drum Foundry
+
+[Drum Foundry](https://aaronvandorn.github.io/Drum-Foundry/), the drum synthesizer, can send its sounds here. Press **Send to Logic Rhythm** or **Send kit to Logic Rhythm** there, with this app open in another tab of the same browser (or let Drum Foundry open it). A dialog lists the sounds, each with the track it would play on, guessed from what drum it is. Change any of them, or leave a sound on the Samples tab only, then press **Load**.
+
+Each sound becomes a sample slot, stored in this browser like an upload, and the chosen tracks switch to it. A sound sent again with the same name updates its slot. Nothing changes if you press Cancel. Like a voice picked by hand, a track's new sound is kept when you save the pattern.
+
+This uses the shared `kit-link.js` module (the `KIT-LINK` block in `index.html`), which any app in the set can use to send or receive drum sounds. Saved samples now also show up in every track's voice menu straight after a reload.
+
 ## Record & export
 
 The **Export** bar under the transport saves the rack as WAV and/or MIDI. The MIDI file has one track per rack row, with General MIDI drum notes on channel 10 (kick 36, snare 38, closed hat 42 and so on), so it drops straight onto a DAW drum kit. Bars follow the grid's meter: 3/4 for the waltz grids, 4/4 otherwise.

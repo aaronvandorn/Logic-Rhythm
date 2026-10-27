@@ -261,6 +261,11 @@ button.ghost:hover{color:var(--label); border-color:var(--label-dim);}
   border-radius:4px; padding:8px 10px; font-family:'Space Mono',monospace; font-size:12.5px; margin-bottom:14px;
 }
 .modal-actions{display:flex; justify-content:flex-end; gap:8px;}
+/* sounds sent from another app (KIT-LINK): one row per sound, with the track it goes on */
+.kit-rows{display:grid; gap:6px; max-height:50vh; overflow:auto; margin-bottom:14px;}
+.kit-row{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; font-size:12px; color:var(--label);}
+.kit-row span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.kit-row select{background:var(--panel); border:1px solid var(--line); color:var(--label); border-radius:4px; padding:4px 6px; font-size:11.5px; max-width:170px;}
 
 /* ---------- matrix ---------- */
 .matrix{margin-top:12px; display:flex; flex-direction:column; gap:6px;}
@@ -2072,6 +2077,121 @@ body.simplified-mode .track-row{grid-template-columns:172px 176px 1fr 70px;}
                       KEEP_SEC: KEEP_SEC, MAX_BARS: MAX_BARS };
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
+<script id="kit-link">
+/* KIT-LINK:BEGIN */
+/* ===== KIT LINK — send drum sounds from one app in the ecosystem to another =====
+   One identical copy of this block is embedded in each app that sends or receives kits (between the
+   KIT-LINK markers); kit-link.js is the source copy. Same browser and same site only: it talks over a
+   BroadcastChannel, so it works between tabs of the apps on aaronvandorn.github.io.
+
+   A sound is { name, role, data, mime }: data is a WAV file as an ArrayBuffer. role says what drum it is,
+   so the receiver can put it on the right track: 'kick', 'snare', 'clap', 'closedHat', 'openHat', 'tom',
+   'lowTom', 'highTom', 'cymbal', 'perc', 'fx', or null.
+
+   Receiving (e.g. Logic Rhythm):
+     KitLink.receiver({ app: 'logic', title: 'Logic Rhythm', onKit: function (kit, answer) {
+       // kit = { sender, sounds }. Show the sounds to the user; nothing need be kept until they confirm.
+       answer(n);   // when done: how many sounds were kept (0 = cancelled)
+     } });
+
+   Sending (e.g. Drum Foundry):
+     KitLink.send({ to: 'logic', url: '/Logic-Rhythm/', sender: 'Drum Foundry', sounds: [...],
+                    onStatus: function (state, info) {} });
+     state: 'looking' | 'closed' (info.open) | 'opening' | 'sent' (info.title) | 'done' (info.imported)
+            | 'blocked' | 'timeout'
+     If no tab of the receiver answers within a moment, the state is 'closed' and info.open() opens the
+     receiver's page in a new tab with #receive-kit (call it from a click); the kit goes once that tab is ready.
+
+   Messages: { kv: 1, t, from, ... } on CHANNEL.
+     sender   -> all       who    { app }                       is a receiver of this app open?
+     receiver -> sender    here   { to, app, title }            answer to who, or unasked on load with #receive-kit
+     sender   -> receiver  kit    { to, id, sender, sounds }
+     receiver -> sender    got    { to, id }
+     receiver -> sender    done   { to, id, imported }                                          */
+(function (global) {
+  'use strict';
+  if (global.KitLink) return;
+  var CHANNEL = 'aaronvandorn-kits-v1', KV = 1;
+  var ASK_MS = 700, OPEN_WAIT_MS = 30000, MAX_SOUNDS = 64, MAX_BYTES = 16 * 1024 * 1024;
+  var ROLES = ['kick', 'snare', 'clap', 'closedHat', 'openHat', 'tom', 'lowTom', 'highTom', 'cymbal', 'perc', 'fx'];
+  function rid() { return Math.random().toString(36).slice(2, 10); }
+  function open(onMsg) {
+    if (typeof BroadcastChannel === 'undefined') return null;
+    var ch = new BroadcastChannel(CHANNEL);
+    ch.onmessage = function (e) { var m = e.data; if (m && m.kv === KV && typeof m.t === 'string' && typeof m.from === 'string') onMsg(m); };
+    return ch;
+  }
+  /* Everything a sender says is checked before an app sees it. */
+  function cleanSounds(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    for (var i = 0; i < list.length && out.length < MAX_SOUNDS; i++) {
+      var s = list[i];
+      if (!s || !(s.data instanceof ArrayBuffer) || s.data.byteLength < 44 || s.data.byteLength > MAX_BYTES) continue;
+      var name = String(typeof s.name === 'string' ? s.name : 'Sound').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 48) || 'Sound';
+      out.push({ name: name, role: ROLES.indexOf(s.role) >= 0 ? s.role : null, data: s.data, mime: 'audio/wav' });
+    }
+    return out;
+  }
+
+  function receiver(o) {
+    var id = rid(), busy = false;
+    var ch = open(function (m) {
+      if (m.t === 'who' && m.app === o.app) post({ t: 'here', to: m.from, app: o.app, title: o.title });
+      else if (m.t === 'kit' && m.to === id) {
+        var sounds = cleanSounds(m.sounds), sender = String(m.sender || 'Another app').slice(0, 40);
+        post({ t: 'got', to: m.from, id: m.id });
+        if (!sounds.length || busy) { post({ t: 'done', to: m.from, id: m.id, imported: 0 }); return; }
+        busy = true;
+        var answered = false;
+        o.onKit({ sender: sender, sounds: sounds }, function (n) {
+          if (answered) return; answered = true; busy = false;
+          post({ t: 'done', to: m.from, id: m.id, imported: Math.max(0, Math.round(+n || 0)) });
+        });
+      }
+    });
+    function post(m) { if (ch) { m.kv = KV; m.from = id; ch.postMessage(m); } }
+    var asked = false;
+    try { asked = /^#receive-kit\b/.test(location.hash); if (asked) history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    if (asked) post({ t: 'here', to: '*', app: o.app, title: o.title });
+    return { id: id };
+  }
+
+  function send(o) {
+    var status = o.onStatus || function () {};
+    var me = rid(), kitId = rid(), target = null, timer = 0, opened = false, sent = false;
+    var ch = open(function (m) {
+      if (m.t === 'here' && m.app === o.to && (m.to === me || (opened && m.to === '*')) && !target) {
+        target = m.from; clearTimeout(timer);
+        post({ t: 'kit', to: target, id: kitId, sender: o.sender, sounds: o.sounds });
+        sent = true; status('sent', { title: m.title || o.to, opened: opened });
+      } else if (m.t === 'done' && m.to === me && m.id === kitId) {
+        clearTimeout(timer); status('done', { imported: m.imported }); close();
+      }
+    });
+    function post(m) { m.kv = KV; m.from = me; ch.postMessage(m); }
+    function close() { try { ch.close(); } catch (e) {} }
+    if (!ch) { status('blocked', { reason: 'channel' }); return; }
+    status('looking', {});
+    post({ t: 'who', app: o.to });
+    timer = setTimeout(function () {
+      if (target) return;
+      // No tab of the receiver is open. Opening one needs a click, so hand the app a function to call from one.
+      status('closed', { open: function () {
+        if (target || opened) return;
+        var win = null;
+        try { win = global.open(o.url + '#receive-kit', '_blank'); } catch (e) { win = null; }
+        if (!win) { status('blocked', { reason: 'popup' }); close(); return; }
+        opened = true; status('opening', {});
+        timer = setTimeout(function () { if (!sent) { status('timeout', {}); close(); } }, OPEN_WAIT_MS);
+      } });
+    }, ASK_MS);
+  }
+
+  global.KitLink = { receiver: receiver, send: send, ROLES: ROLES, cleanSounds: cleanSounds };
+})(typeof window !== 'undefined' ? window : globalThis);
+/* KIT-LINK:END */
+</script>
 <script>
 /* ================= data model ================= */
 /* Names and colors scale to however many clocks exist — no longer fixed at 6. The first six
@@ -3289,6 +3409,7 @@ async function loadPersistedSamples(){
     }catch(e){ console.warn('Failed to restore saved sample', slot.id, e); }
   }
   renderSamplesTab();
+  renderMatrix(); // the saved samples can now be listed in every track's voice menu
 }
 function renderSamplesTab(){
   const el=document.getElementById('samplesGrid');
@@ -3326,6 +3447,71 @@ function renderSamplesTab(){
   el.querySelectorAll('.sample-btn[data-act="remove"]').forEach(btn=>{
     btn.addEventListener('click', ()=> removeSampleSlot(btn.dataset.slot));
   });
+}
+
+/* ================= kits from other apps (KIT-LINK block) =================
+   Drum Foundry, or any app in the set with the KIT-LINK block, can send drum sounds to this page when
+   both are open in the same browser. They arrive in a dialog that lists each sound with the track it
+   would play on (guessed from what drum it is); nothing changes until Load. Load gives every sound a
+   sample slot (reusing a slot with the same name, so sending a sound again updates it, or else an empty
+   "Custom N" slot) and stores its audio exactly as an upload would, then puts the chosen sounds on their
+   tracks. Like a voice picked by hand, the tracks' new voices are kept when the pattern is saved. */
+const KIT_ROLE_TRACK = {kick:'kick', snare:'snare', clap:'clap', closedHat:'chat', openHat:'ohat', tom:'tom', lowTom:'tom', highTom:'tom', cymbal:'rim', perc:'rim'};
+function kitTrackGuesses(sounds){
+  const taken = {};
+  return sounds.map(s=>{
+    const t = KIT_ROLE_TRACK[s.role];
+    if(t && !taken[t] && tracks.some(tr=>tr.id===t)){ taken[t] = true; return t; }
+    return '';
+  });
+}
+function receiveKit(kit, answer){
+  const choice = kitTrackGuesses(kit.sounds);
+  const opts = sel => '<option value="">Samples tab only</option>' + tracks.map((tr, i)=>
+    `<option value="${tr.id}" ${tr.id===sel?'selected':''}>Track ${i+1} · ${escapeHtml(tr.name)}</option>`).join('');
+  const rows = kit.sounds.map((snd, i)=>
+    `<label class="kit-row"><span title="${escapeHtml(snd.name)}">${escapeHtml(snd.name)}</span><select class="kitTrack" data-i="${i}" aria-label="Track for ${escapeHtml(snd.name)}">${opts(choice[i])}</select></label>`).join('');
+  const n = kit.sounds.length;
+  showModal({
+    title: 'SOUNDS FROM ' + escapeHtml(kit.sender.toUpperCase()),
+    message: `${n} ${n===1?'sound':'sounds'}. Each one becomes a sample slot. Choose the track that plays it, or leave it on the Samples tab.<div class="kit-rows" style="margin-top:10px;">${rows}</div>`,
+    confirmLabel: 'Load', cancelLabel: 'Cancel',
+    onConfirm: ()=>{ applyKit(kit, choice).then(answer, ()=>answer(0)); },
+    onCancel: ()=> answer(0)
+  });
+  // one sound per track: picking a track for one sound takes it from any other
+  document.querySelectorAll('#modalBox .kitTrack').forEach(sel=>sel.addEventListener('change', ()=>{
+    const i = +sel.dataset.i;
+    choice[i] = sel.value;
+    if(sel.value) document.querySelectorAll('#modalBox .kitTrack').forEach(other=>{
+      const j = +other.dataset.i;
+      if(j!==i && choice[j]===sel.value){ choice[j] = ''; other.value = ''; }
+    });
+  }));
+}
+async function applyKit(kit, choice){
+  ensureAudio();
+  let kept = 0;
+  for(let i=0; i<kit.sounds.length; i++){
+    const snd = kit.sounds[i];
+    let audioBuf;
+    try{ audioBuf = await ctx.decodeAudioData(snd.data.slice(0)); }catch(e){ continue; }
+    let slot = sampleSlots.find(x=>x.name===snd.name)
+            || sampleSlots.find(x=>/^Custom \d+$/.test(x.name) && !customBuffers[x.id]);
+    if(!slot){ slot = {id:'sample_'+Date.now()+'_'+i+Math.floor(Math.random()*1000), name:snd.name}; sampleSlots.push(slot); }
+    slot.name = snd.name;
+    customBuffers[slot.id] = audioBuf;
+    saveSampleBlob(slot.id, new Blob([snd.data], {type:'audio/wav'}));
+    const tr = choice[i] && tracks.find(t=>t.id===choice[i]);
+    if(tr){ tr.voice = slot.id; tr.name = slot.name; }
+    kept++;
+  }
+  // a slot already playing on a track keeps its name there too
+  tracks.forEach(tr=>{ const sl = sampleSlots.find(x=>x.id===tr.voice); if(sl) tr.name = sl.name; });
+  persistSampleSlots();
+  renderSamplesTab();
+  renderMatrix();
+  return kept;
 }
 
 /* ================= sequencing logic ================= */
@@ -4290,6 +4476,7 @@ document.querySelectorAll('#accentModule .stepbtn').forEach(btn=>{
 });
 loadPersistedSampleSlots();
 loadPersistedSamples(); // also renders the tab once slots + any saved audio are in
+if(window.KitLink) KitLink.receiver({ app:'logic', title:'Logic Rhythm', onKit: receiveKit });
 document.getElementById('addSampleSlotBtn').addEventListener('click', addSampleSlot);
 loadPersistedPatterns();
 document.getElementById('songTitleInput').value = songTitle;
