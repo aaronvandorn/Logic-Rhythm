@@ -2701,6 +2701,32 @@ function buildExamplePatterns(){
         ],
         steps:24, meterKey:'4-triplet', bpm:90, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
     }},
+    { id:'preset-gamelan', name:'Gamelan Colotomic', state:{
+        /* A stylized colotomic cycle of 16 beats, not a transcription of any piece. The gong ends
+           the cycle, the kenong marks every fourth beat, the kempul falls one beat after each
+           kenong-free quarter start, and the kethuk ticks the even beats. The bonang pair is a kotekan:
+           the lower bonang (polos) plays ÷3 OR ÷4+2, and the upper (sangsih) plays NOR of the
+           same two clocks, so together they fill every step and never land on the same one. */
+        clocks:[
+          {division:16,offset:15,lfo:false}, // gong, last beat of the cycle
+          {division:4,offset:3,lfo:false},   // kenong
+          {division:4,offset:1,lfo:false},   // kempul
+          {division:2,offset:0,lfo:false},   // kethuk
+          {division:2,offset:1,lfo:false},   // saron, the plain melody pulse
+          {division:3,offset:0,lfo:false},   // kotekan clock 1
+          {division:4,offset:2,lfo:false},   // kotekan clock 2
+        ],
+        tracks:[
+          ptr('kick','gongAgeng',0,0,'A',0.9),
+          ptr('snare','kenong',1,1,'A',0.6),
+          ptr('clap','kempul',2,2,'A',0.55),
+          ptr('chat','kethuk',3,3,'A',0.4),
+          ptr('ohat','saron',4,4,'A',0.45),
+          ptr('tom','bonangLo',5,6,'OR',0.5),    // polos
+          ptr('rim','bonangHi',5,6,'NOR',0.4),   // sangsih, the exact complement
+        ],
+        steps:16, bpm:96, swingPct:0, lfoEnabled:false, lfoPeriod:45, lfoDepth:0.4,
+    }},
     { id:'preset-perc-poly', name:'Percussion Polyrhythm', state:{
         /* The Pure Polyrhythm clocks (all odd: 3,5,7,9,11,13 — no two share a pulse), voiced as
            pitched hand drums and bells so the overlapping cycles are easy to tell apart. */
@@ -3120,6 +3146,19 @@ function playTriangle(dest,t,v){
   percTone(dest,t,{f0:7310, level:0.07*v, decay:0.5});
 }
 
+// Gamelan: struck bronze. Pot gongs and keys have slightly inharmonic partials and a long ring.
+// These are stylized, not tuned to any real gamelan.
+function playBronze(dest,t,v,f,decay,lvl){
+  percTone(dest,t,{f0:f, f1:f*0.995, bend:0.3, level:lvl*v, decay:decay});
+  percTone(dest,t,{f0:f*2.02, level:0.3*lvl*v, decay:decay*0.55});
+  percTone(dest,t,{f0:f*2.76, level:0.16*lvl*v, decay:decay*0.3});
+  percNoise(dest,t,{ftype:'bandpass', freq:f*3, Q:2, level:0.08*v, decay:0.02});
+}
+function playGongAgeng(dest,t,v){
+  playBronze(dest,t,v,58,3.2,0.8);
+  percTone(dest,t,{f0:87, level:0.25*v, decay:2.2, attack:0.05});
+}
+
 // Wood.
 function playClave(dest,t,v){
   percTone(dest,t,{f0:2500, level:0.75*v, decay:0.055});
@@ -3192,6 +3231,13 @@ const PERC_VOICE_DEFS = {
   cabasa:     {label:'CABASA',       synth:(d,t,v)=>playCabasa(d,t,v)},
   tambourine: {label:'TAMBOURINE',   synth:(d,t,v)=>playTambourine(d,t,v)},
   guiro:      {label:'GUIRO',        synth:(d,t,v)=>playGuiro(d,t,v)},
+  gongAgeng:  {label:'GONG AGENG',   synth:(d,t,v)=>playGongAgeng(d,t,v)},
+  kenong:     {label:'KENONG',       synth:(d,t,v)=>playBronze(d,t,v,294,1.5,0.6)},
+  kempul:     {label:'KEMPUL',       synth:(d,t,v)=>playBronze(d,t,v,196,2.0,0.6)},
+  kethuk:     {label:'KETHUK',       synth:(d,t,v)=>playBronze(d,t,v,520,0.16,0.55)},
+  saron:      {label:'SARON',        synth:(d,t,v)=>playBronze(d,t,v,588,0.9,0.5)},
+  bonangLo:   {label:'BONANG LO',    synth:(d,t,v)=>playBronze(d,t,v,440,0.55,0.5)},
+  bonangHi:   {label:'BONANG HI',    synth:(d,t,v)=>playBronze(d,t,v,660,0.45,0.45)},
 };
 const KIT_VOICE_KEYS = Object.keys(VOICE_DEFS);
 Object.assign(VOICE_DEFS, PERC_VOICE_DEFS);
@@ -4509,7 +4555,7 @@ if(ctx && masterGain){ masterGain.disconnect(); masterGain.connect(jam.speakers(
    Bars follow the running grid's meter (3/4, 12/8 or 4/4) from the pattern's first step. */
 const LR_GM = { kick:36, kickHi:35, kickLo:35, snare:38, clap:39, chatClosed:42, chatOpen:46, tom:45, tomHi:48, tomLo:41, rim:37,
   congaHi:63, congaLo:64, congaSlap:62, bongoHi:60, bongoLo:61, djembeBass:35, djembeTone:63, surdo:41, talkingDrum:47, tabla:60,
-  timbale:65, cowbell:56, agogoHi:67, agogoLo:68, triangle:81, clave:75, woodblock:76, shaker:82, cabasa:69, tambourine:54, guiro:74 };
+  timbale:65, cowbell:56, agogoHi:67, agogoLo:68, triangle:81, clave:75, woodblock:76, shaker:82, cabasa:69, tambourine:54, guiro:74, gongAgeng:35, kenong:56, kempul:56, kethuk:75, saron:81, bonangLo:68, bonangHi:67 };
 const lrBeatsPerBar = ()=>METER_DEFS[meterKey].beatsPerBar;
 var lrExport = JamClips.source({
   app:'logic', title:'Logic Rhythm',

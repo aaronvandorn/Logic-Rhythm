@@ -36,6 +36,10 @@ The **Kit** selector in the top bar switches all seven slots between **Drum Kit*
 
 Three new patterns in the library are set up for it: **Percussion 12/8** (the Afrobeat pattern as a hand-drum ensemble with the bell on agogo), **Percussion 3 over 4** (tumba playing 3 against cowbell playing 4, with the conga slap only where they disagree), and **Percussion Polyrhythm** (the odd-numbered clocks of Pure Polyrhythm on pitched drums and bells).
 
+### Gamelan voices
+
+The Percussion list also has six struck-bronze sounds: **Gong Ageng, Kenong, Kempul, Kethuk, Saron** and **Bonang Lo / Hi**. They are stylized, not tuned to any real gamelan. The **Gamelan Colotomic** pattern uses them in a 16-beat cycle: the gong closes the cycle, the kenong marks every fourth beat, and the kempul and kethuk fill between. The two bonang tracks are a kotekan-style interlock: one plays `÷3 OR ÷4+2` and the other plays the same two clocks through `NOR`, so together they fill every step and never land on the same one. Any pair of tracks can interlock this way by sharing clocks and using a gate and its complement.
+
 ## Sounds from Drum Foundry
 
 [Drum Foundry](https://aaronvandorn.github.io/Drum-Foundry/), the drum synthesizer, can send its sounds here. Press **Send to Logic Rhythm** or **Send kit to Logic Rhythm** there, with this app open in another tab of the same browser (or let Drum Foundry open it). A dialog lists the sounds, each with the track it would play on, guessed from what drum it is. Change any of them, or leave a sound on the Samples tab only, then press **Load**.
